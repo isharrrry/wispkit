@@ -1,0 +1,10 @@
+/* R5 相对资源验证：这个文件通过 <link href="../assets/html/css/demo.css"> 加载。
+   能生效说明 HTML 视图注入的 <base href> 正确指到了当前文档。
+   注意：../assets/ 在 R5-jump/ 之外，只有把 demo 作为**文件夹**打开时
+   才落在 webview 的 localResourceRoots 里。 */
+.r5-css-probe {
+	color: rgb(0, 100, 60);
+	font-weight: 700;
+	border-left: 6px solid rgb(0, 150, 90);
+	padding-left: 10px;
+}

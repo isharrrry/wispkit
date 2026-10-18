@@ -1,0 +1,8 @@
+{
+	"name": "wispkit-demo",
+	"columns": ["name", "size", "mtime", "ctime", "owner"],
+	"items": [
+		{ "id": 1, "title": "第一项" },
+		{ "id": 2, "title": "第二项" }
+	]
+}

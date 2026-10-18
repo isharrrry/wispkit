@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>演示工程 · Wispkit 展示页</title>
+	<style>
+		:root {
+			--ink: #1f2328;
+			--muted: #656d76;
+			--line: #d8dee4;
+			--accent: #0969da;
+			--bg: #ffffff;
+			--panel: #f6f8fa;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			padding: 32px 40px 56px;
+			background: var(--bg);
+			color: var(--ink);
+			font: 15px/1.7 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+		}
+
+		h1 {
+			margin: 0 0 4px;
+			font-size: 26px;
+		}
+
+		.sub {
+			margin: 0 0 24px;
+			color: var(--muted);
+		}
+
+		.card {
+			margin-bottom: 16px;
+			padding: 16px 18px;
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			background: var(--panel);
+		}
+
+		.card h2 {
+			margin: 0 0 8px;
+			font-size: 16px;
+		}
+
+		code,
+		pre {
+			font-family: "Cascadia Mono", Consolas, monospace;
+			font-size: 13px;
+		}
+
+		code {
+			padding: 1px 5px;
+			border-radius: 4px;
+			background: rgba(175, 184, 193, 0.25);
+		}
+
+		pre {
+			margin: 8px 0 0;
+			padding: 12px 14px;
+			overflow: auto;
+			border: 1px solid var(--line);
+			border-radius: 6px;
+			background: #fff;
+		}
+
+		.ok {
+			color: #1a7f37;
+			font-weight: 600;
+		}
+
+		table {
+			width: 100%;
+			border-collapse: collapse;
+		}
+
+		th,
+		td {
+			padding: 6px 10px;
+			border-bottom: 1px solid var(--line);
+			text-align: left;
+			vertical-align: top;
+		}
+
+		th {
+			color: var(--muted);
+			font-weight: 600;
+		}
+
+		a {
+			color: var(--accent);
+		}
+
+		footer {
+			margin-top: 24px;
+			padding-top: 12px;
+			border-top: 1px solid var(--line);
+			color: var(--muted);
+			font-size: 13px;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>演示工程 · Wispkit 展示页</h1>
+	<p class="sub">这个页面是被 <code>.WispkitView/Wispkit.json</code> 里的配置打开的，不是手动双击的。</p>
+
+	<div class="card">
+		<h2>它是怎么被打开的</h2>
+		<p>在资源管理器里右键「演示工程」这个文件夹 → 点 <strong>展示</strong>（<code>$(open-preview)</code> 图标）→ Wispkit 找到
+			<code>.WispkitView/Wispkit.json</code> → 按配置里的 <code>entry</code> + <code>openWith</code> 打开本页。
+		</p>
+		<pre>{
+  "title": "R7 子树浏览演示",
+  "entry": ".WispkitView/index.html",
+  "openWith": "wispkit.html"
+}</pre>
+	</div>
+
+	<div class="card">
+		<h2>如果你看到这一页</h2>
+		<p class="ok">✓ 说明「展示」图标、配置查找、entry 解析、viewType 打开这四步全通了。</p>
+		<table>
+			<tr>
+				<th>步骤</th>
+				<th>对应实现</th>
+			</tr>
+			<tr>
+				<td>找到配置</td>
+				<td>先查 <code>&lt;文件夹&gt;/.WispkitView/Wispkit.json</code>，再查 <code>&lt;文件夹&gt;/Wispkit.json</code></td>
+			</tr>
+			<tr>
+				<td>解析 entry</td>
+				<td>相对被点击的那个文件夹解析，且不允许跑到文件夹外面</td>
+			</tr>
+			<tr>
+				<td>打开</td>
+				<td><code>vscode.openWith(entry, openWith)</code>，本页用的是 <code>wispkit.html</code></td>
+			</tr>
+		</table>
+	</div>
+
+	<div class="card">
+		<h2>顺手验一下 HTML 视图</h2>
+		<p>Wispkit 的 HTML 视图用宽松 CSP，页面自带的脚本能跑。下面这个数字是脚本算出来的：</p>
+		<p>本页在 <span id="clock">…</span> 被打开，随机数 <code id="nonce">…</code>。</p>
+	</div>
+
+	<footer>demo / R7-subtree / 演示工程 / .WispkitView / index.html</footer>
+
+	<script>
+		document.getElementById('clock').textContent = new Date().toLocaleString('zh-CN');
+		document.getElementById('nonce').textContent = Math.random().toString(36).slice(2, 10);
+	</script>
+</body>
+
+</html>

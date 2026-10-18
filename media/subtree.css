@@ -1,0 +1,382 @@
+/* 子树浏览视图：树的观感对齐资源管理器（紧凑行 + 选中态 + 多列），右侧是选中条目的操作区。 */
+
+.wispkit-subtree-shell {
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+	box-sizing: border-box;
+	font-size: 13px;
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+}
+
+/* 内联 SVG sprite：内容为零尺寸，只为让 <use> 有东西可引 */
+.wispkit-subtree-sprite {
+	position: absolute;
+	width: 0;
+	height: 0;
+	overflow: hidden;
+}
+
+/* 图标线条统一用 currentColor，所以颜色自动跟随主题、悬停与选中态，无需为每个状态配色 */
+.wispkit-subtree-icon-svg {
+	flex: 0 0 auto;
+	width: 14px;
+	height: 14px;
+	color: inherit;
+}
+
+.wispkit-subtree-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 0 0 auto;
+	padding: 6px 10px;
+	border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+}
+
+.wispkit-subtree-toolbar-spacer {
+	flex: 1 1 auto;
+}
+
+.wispkit-subtree-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 3px 10px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 3px;
+	background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.18));
+	color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+	font: inherit;
+	cursor: pointer;
+}
+
+.wispkit-subtree-btn:hover:not(:disabled) {
+	background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.28));
+}
+
+.wispkit-subtree-btn:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+/* 工具栏最右：选中项的完整路径（没选中时是根路径） */
+.wispkit-subtree-selected-path {
+	flex: 0 1 auto;
+	max-width: 45%;
+	overflow: hidden;
+	padding-left: 8px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--vscode-descriptionForeground);
+}
+
+.wispkit-subtree-status {
+	flex: 0 1 auto;
+	max-width: 40%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.wispkit-subtree-status.is-error {
+	color: var(--vscode-errorForeground);
+}
+
+.wispkit-subtree-main {
+	display: flex;
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.wispkit-subtree-tree {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: auto;
+}
+
+/* 表头吸顶，横向滚动时跟着列一起走（它是每一行之外的独立一条） */
+.wispkit-subtree-header {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	height: 24px;
+	background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+	border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+/* 列名可点排序；右缘还有一条拖拽手柄（绝对定位，不占列宽） */
+.wispkit-subtree-header .wispkit-subtree-cell {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+	user-select: none;
+}
+
+.wispkit-subtree-header .wispkit-subtree-cell:hover {
+	color: var(--vscode-foreground);
+}
+
+.wispkit-subtree-header .wispkit-subtree-cell[data-sorted] {
+	color: var(--vscode-foreground);
+	font-weight: 600;
+}
+
+.wispkit-subtree-header-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.wispkit-subtree-sort-indicator {
+	width: 12px;
+	height: 12px;
+}
+
+.wispkit-subtree-resize {
+	position: absolute;
+	top: 0;
+	right: -3px;
+	z-index: 2;
+	width: 6px;
+	height: 100%;
+	cursor: col-resize;
+}
+
+.wispkit-subtree-resize:hover,
+.wispkit-subtree-resize.is-dragging {
+	background: var(--vscode-focusBorder, #007fd4);
+}
+
+.wispkit-subtree-rows {
+	min-width: max-content;
+}
+
+.wispkit-subtree-row {
+	display: flex;
+	align-items: center;
+	height: 22px;
+	white-space: nowrap;
+	cursor: default;
+	user-select: none;
+}
+
+.wispkit-subtree-row:hover {
+	background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15));
+}
+
+.wispkit-subtree-row.is-selected {
+	background: var(--vscode-list-activeSelectionBackground, #094771);
+	color: var(--vscode-list-activeSelectionForeground, #ffffff);
+}
+
+.wispkit-subtree-row.is-selected .wispkit-subtree-cell {
+	color: inherit;
+}
+
+.wispkit-subtree-cell {
+	flex: 0 0 auto;
+	overflow: hidden;
+	padding: 0 8px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	/* 必须 border-box：否则名称列按层级变化的 padding 会撑宽单元格本身（content-box 下
+	   width 不含 padding），把后面所有列一起推右 —— 这正是"层级越深其他列越偏"的成因。 */
+	box-sizing: border-box;
+}
+
+/* 每列宽度由 :root 上的 CSS 变量给出（宿主按配置生成，前端可拖拽覆盖），表头与数据行共用 */
+.wispkit-subtree-cell[data-column="name"] { width: var(--wispkit-col-name, 280px); }
+.wispkit-subtree-cell[data-column="ext"] { width: var(--wispkit-col-ext, 80px); }
+.wispkit-subtree-cell[data-column="size"] { width: var(--wispkit-col-size, 90px); text-align: right; }
+.wispkit-subtree-cell[data-column="mtime"] { width: var(--wispkit-col-mtime, 160px); }
+.wispkit-subtree-cell[data-column="ctime"] { width: var(--wispkit-col-ctime, 160px); }
+.wispkit-subtree-cell[data-column="atime"] { width: var(--wispkit-col-atime, 160px); }
+.wispkit-subtree-cell[data-column="owner"] { width: var(--wispkit-col-owner, 130px); }
+.wispkit-subtree-cell[data-column="mode"] { width: var(--wispkit-col-mode, 100px); }
+.wispkit-subtree-cell[data-column="type"] { width: var(--wispkit-col-type, 100px); }
+
+.wispkit-subtree-cell[data-align="right"] {
+	text-align: right;
+}
+
+/* 名称列：固定左内边距 + 缩进占位 + 展开箭头。
+   层级缩进**不在这里**，而由单元格内部的 `.wispkit-subtree-indent` 承担 ——
+   缩进只影响名称列自身的排版，其余列（大小/类型/时间/用户）永远左对齐在同一竖线上。 */
+.wispkit-subtree-cell[data-column="name"] {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding-left: 6px;
+}
+
+.wispkit-subtree-indent {
+	flex: 0 0 auto;
+	width: calc(var(--wispkit-depth, 0) * 14px);
+}
+
+.wispkit-subtree-twisty {
+	flex: 0 0 14px;
+	width: 14px;
+	height: 14px;
+	line-height: 14px;
+	text-align: center;
+	border: none;
+	padding: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+	opacity: 0.85;
+}
+
+.wispkit-subtree-twisty.is-leaf {
+	visibility: hidden;
+}
+
+.wispkit-subtree-item-icon {
+	width: 14px;
+	height: 14px;
+	opacity: 0.9;
+}
+
+/*
+ * 主题图标：用户当前图标主题（如 vscode-modern-icons）自己的 svg，URI 由宿主经
+ * config.iconTheme 下发。用 mask 而不是 <img> —— 主题的 svg 全是 fill="currentColor"
+ * 的单色图标（实测 117 个文件的硬编码颜色数为 0），mask + background-color 才能跟随
+ * 前景/选中态；<img> 会把它们画成 svg 自己的默认色，反而不一致。
+ * URI 由内联样式写进 --wispkit-subtree-icon-mask（每个条目一个值，不能放进类里）。
+ */
+.wispkit-subtree-icon {
+	flex: 0 0 auto;
+	display: inline-block;
+	background-color: currentColor;
+	-webkit-mask-image: var(--wispkit-subtree-icon-mask);
+	mask-image: var(--wispkit-subtree-icon-mask);
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+	-webkit-mask-position: center;
+	mask-position: center;
+	-webkit-mask-size: contain;
+	mask-size: contain;
+}
+
+.wispkit-subtree-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.wispkit-subtree-error {
+	padding: 4px 8px 4px 24px;
+	color: var(--vscode-errorForeground);
+	white-space: nowrap;
+}
+
+.wispkit-subtree-empty {
+	padding: 4px 8px 4px 24px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.wispkit-subtree-splitter {
+	flex: 0 0 4px;
+	cursor: col-resize;
+	background: transparent;
+}
+
+.wispkit-subtree-splitter:hover,
+.wispkit-subtree-splitter.is-dragging {
+	background: var(--vscode-focusBorder, #007fd4);
+}
+
+.wispkit-subtree-actions {
+	flex: 0 0 auto;
+	width: 240px;
+	overflow: auto;
+	padding: 8px;
+	border-left: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+}
+
+.wispkit-subtree-section + .wispkit-subtree-section {
+	margin-top: 14px;
+}
+
+.wispkit-subtree-section[hidden] {
+	display: none;
+}
+
+.wispkit-subtree-section-title {
+	margin: 0 0 6px;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	color: var(--vscode-descriptionForeground);
+}
+
+.wispkit-subtree-count {
+	margin-left: 6px;
+	font-weight: 400;
+}
+
+.wispkit-subtree-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+/* 功能类别之间画一条分隔线（第一组不加），让「剪贴板 / 编辑 / 路径…」一眼分得开 */
+.wispkit-subtree-group + .wispkit-subtree-group {
+	margin-top: 8px;
+	padding-top: 8px;
+	border-top: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+}
+
+.wispkit-subtree-group-title {
+	margin-bottom: 3px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.wispkit-subtree-action {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	padding: 4px 8px;
+	border: none;
+	border-radius: 3px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	overflow: hidden;
+}
+
+.wispkit-subtree-action:hover:not(:disabled) {
+	background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15));
+}
+
+.wispkit-subtree-action:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.wispkit-subtree-action-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.wispkit-subtree-action-badge {
+	margin-left: auto;
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+}

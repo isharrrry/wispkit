@@ -1,0 +1,26 @@
+<Window
+	xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	Title="极简示例"
+	Width="420"
+	Height="200"
+	Background="#FFFDF6E3">
+	<Grid>
+		<StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+			<TextBlock
+				Text="Wispkit XAML 渲染"
+				FontFamily="Microsoft YaHei UI"
+				FontSize="24"
+				FontWeight="Bold"
+				Foreground="#FF2D2D2D"
+				HorizontalAlignment="Center" />
+			<TextBlock
+				Text="极简示例 · 单个 TextBlock"
+				FontFamily="Microsoft YaHei UI"
+				FontSize="13"
+				Foreground="#FF7A7A7A"
+				Margin="0,8,0,0"
+				HorizontalAlignment="Center" />
+		</StackPanel>
+	</Grid>
+</Window>

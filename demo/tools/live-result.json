@@ -1,0 +1,466 @@
+{
+  "steps": [
+    {
+      "name": "vscode.version",
+      "value": "1.137.0"
+    },
+    {
+      "name": "wispkit.installed",
+      "value": true
+    },
+    {
+      "name": "wispkit.extensionPath",
+      "value": "c:\\Users\\PC\\.vscode\\extensions\\narnat.wispkit-0.1.0"
+    },
+    {
+      "name": "wispkit.active",
+      "value": true
+    },
+    {
+      "name": "wispkit.commandRegistered",
+      "value": true
+    },
+    {
+      "name": "csp.webviewMessage",
+      "value": {
+        "nonceScriptRan": true,
+        "violations": []
+      }
+    },
+    {
+      "name": "R1-injection_01-injection-baseline.md.render.commandExistsBeforeActivation",
+      "value": false
+    },
+    {
+      "name": "R1-injection_01-injection-baseline.md.render.returnType",
+      "value": "string"
+    },
+    {
+      "name": "R1-injection_01-injection-baseline.md.render.error",
+      "value": null
+    },
+    {
+      "name": "R1-injection_01-injection-baseline.md.render.length",
+      "value": 9244
+    },
+    {
+      "name": "R1-injection_01-injection-baseline.md.render.mermaidDivPresent",
+      "value": true
+    },
+    {
+      "name": "R1-injection_01-injection-baseline.md.render.katexRendered",
+      "value": true
+    },
+    {
+      "name": "R1-injection_01-injection-baseline.md.render.headingHasId",
+      "value": true
+    },
+    {
+      "name": "R1-injection_01-injection-baseline.md.render.relativeImgSrcKept",
+      "value": false
+    },
+    {
+      "name": "R1-injection_01-injection-baseline.md.render.headingCounts",
+      "value": {
+        "h1": 1,
+        "h2": 4,
+        "h3": 0,
+        "h4": 0,
+        "h5": 0,
+        "h6": 0
+      }
+    },
+    {
+      "name": "R1-injection_01-injection-baseline.md.contributionScripts",
+      "value": [
+        "./media/index.js",
+        "./markdown-preview-out/index.js",
+        "./drawio/src/main/webapp/js/viewer-static.min.js",
+        "./src/inline-editor/webview/previewInit.js"
+      ]
+    },
+    {
+      "name": "R1-injection_01-injection-baseline.md.contributionStyles",
+      "value": [
+        "./markdown.css",
+        "./media/markdown.css",
+        "./media/highlight.css",
+        "./notebook-out/katex.min.css",
+        "./preview-styles/index.css",
+        "./src/inline-editor/webview/preview.css"
+      ]
+    },
+    {
+      "name": "R1-injection_01-injection-baseline.md.probeInjected",
+      "value": true
+    },
+    {
+      "name": "R1-injection_01-injection-baseline.md.probe",
+      "value": {
+        "label": "R1-injection_01-injection-baseline.md",
+        "mermaidDivs": 1,
+        "mermaidSvgs": 1,
+        "tocLinks": 5,
+        "h1": 1,
+        "h2": 4,
+        "h3": 0,
+        "h4": 0,
+        "katexNodes": 2,
+        "imgCount": 0,
+        "imgSrc": null,
+        "imgResolvedToWebviewUri": null,
+        "imgLoaded": null,
+        "imgLoadedCount": 0,
+        "violations": []
+      }
+    },
+    {
+      "name": "R2-toc_01-depth-default.md.render.commandExistsBeforeActivation",
+      "value": true
+    },
+    {
+      "name": "R2-toc_01-depth-default.md.render.returnType",
+      "value": "string"
+    },
+    {
+      "name": "R2-toc_01-depth-default.md.render.error",
+      "value": null
+    },
+    {
+      "name": "R2-toc_01-depth-default.md.render.length",
+      "value": 4397
+    },
+    {
+      "name": "R2-toc_01-depth-default.md.render.mermaidDivPresent",
+      "value": false
+    },
+    {
+      "name": "R2-toc_01-depth-default.md.render.katexRendered",
+      "value": false
+    },
+    {
+      "name": "R2-toc_01-depth-default.md.render.headingHasId",
+      "value": true
+    },
+    {
+      "name": "R2-toc_01-depth-default.md.render.relativeImgSrcKept",
+      "value": false
+    },
+    {
+      "name": "R2-toc_01-depth-default.md.render.headingCounts",
+      "value": {
+        "h1": 1,
+        "h2": 3,
+        "h3": 4,
+        "h4": 1,
+        "h5": 1,
+        "h6": 1
+      }
+    },
+    {
+      "name": "R2-toc_01-depth-default.md.contributionScripts",
+      "value": [
+        "./media/index.js",
+        "./markdown-preview-out/index.js",
+        "./drawio/src/main/webapp/js/viewer-static.min.js",
+        "./src/inline-editor/webview/previewInit.js"
+      ]
+    },
+    {
+      "name": "R2-toc_01-depth-default.md.contributionStyles",
+      "value": [
+        "./markdown.css",
+        "./media/markdown.css",
+        "./media/highlight.css",
+        "./notebook-out/katex.min.css",
+        "./preview-styles/index.css",
+        "./src/inline-editor/webview/preview.css"
+      ]
+    },
+    {
+      "name": "R2-toc_01-depth-default.md.probeInjected",
+      "value": true
+    },
+    {
+      "name": "R2-toc_01-depth-default.md.probe",
+      "value": {
+        "label": "R2-toc_01-depth-default.md",
+        "mermaidDivs": 0,
+        "mermaidSvgs": 0,
+        "tocLinks": 8,
+        "h1": 1,
+        "h2": 3,
+        "h3": 4,
+        "h4": 1,
+        "katexNodes": 0,
+        "imgCount": 0,
+        "imgSrc": null,
+        "imgResolvedToWebviewUri": null,
+        "imgLoaded": null,
+        "imgLoadedCount": 0,
+        "violations": []
+      }
+    },
+    {
+      "name": "R2-toc_05-many-headings.md.render.commandExistsBeforeActivation",
+      "value": true
+    },
+    {
+      "name": "R2-toc_05-many-headings.md.render.returnType",
+      "value": "string"
+    },
+    {
+      "name": "R2-toc_05-many-headings.md.render.error",
+      "value": null
+    },
+    {
+      "name": "R2-toc_05-many-headings.md.render.length",
+      "value": 32647
+    },
+    {
+      "name": "R2-toc_05-many-headings.md.render.mermaidDivPresent",
+      "value": false
+    },
+    {
+      "name": "R2-toc_05-many-headings.md.render.katexRendered",
+      "value": false
+    },
+    {
+      "name": "R2-toc_05-many-headings.md.render.headingHasId",
+      "value": true
+    },
+    {
+      "name": "R2-toc_05-many-headings.md.render.relativeImgSrcKept",
+      "value": false
+    },
+    {
+      "name": "R2-toc_05-many-headings.md.render.headingCounts",
+      "value": {
+        "h1": 1,
+        "h2": 16,
+        "h3": 60,
+        "h4": 0,
+        "h5": 0,
+        "h6": 0
+      }
+    },
+    {
+      "name": "R2-toc_05-many-headings.md.contributionScripts",
+      "value": [
+        "./media/index.js",
+        "./markdown-preview-out/index.js",
+        "./drawio/src/main/webapp/js/viewer-static.min.js",
+        "./src/inline-editor/webview/previewInit.js"
+      ]
+    },
+    {
+      "name": "R2-toc_05-many-headings.md.contributionStyles",
+      "value": [
+        "./markdown.css",
+        "./media/markdown.css",
+        "./media/highlight.css",
+        "./notebook-out/katex.min.css",
+        "./preview-styles/index.css",
+        "./src/inline-editor/webview/preview.css"
+      ]
+    },
+    {
+      "name": "R2-toc_05-many-headings.md.probeInjected",
+      "value": true
+    },
+    {
+      "name": "R2-toc_05-many-headings.md.probe",
+      "value": {
+        "label": "R2-toc_05-many-headings.md",
+        "mermaidDivs": 0,
+        "mermaidSvgs": 0,
+        "tocLinks": 77,
+        "h1": 1,
+        "h2": 16,
+        "h3": 60,
+        "h4": 0,
+        "katexNodes": 0,
+        "imgCount": 0,
+        "imgSrc": null,
+        "imgResolvedToWebviewUri": null,
+        "imgLoaded": null,
+        "imgLoadedCount": 0,
+        "violations": []
+      }
+    },
+    {
+      "name": "R3-mermaid_02-large.md.render.commandExistsBeforeActivation",
+      "value": true
+    },
+    {
+      "name": "R3-mermaid_02-large.md.render.returnType",
+      "value": "string"
+    },
+    {
+      "name": "R3-mermaid_02-large.md.render.error",
+      "value": null
+    },
+    {
+      "name": "R3-mermaid_02-large.md.render.length",
+      "value": 3151
+    },
+    {
+      "name": "R3-mermaid_02-large.md.render.mermaidDivPresent",
+      "value": true
+    },
+    {
+      "name": "R3-mermaid_02-large.md.render.katexRendered",
+      "value": false
+    },
+    {
+      "name": "R3-mermaid_02-large.md.render.headingHasId",
+      "value": true
+    },
+    {
+      "name": "R3-mermaid_02-large.md.render.relativeImgSrcKept",
+      "value": false
+    },
+    {
+      "name": "R3-mermaid_02-large.md.render.headingCounts",
+      "value": {
+        "h1": 1,
+        "h2": 4,
+        "h3": 0,
+        "h4": 0,
+        "h5": 0,
+        "h6": 0
+      }
+    },
+    {
+      "name": "R3-mermaid_02-large.md.contributionScripts",
+      "value": [
+        "./media/index.js",
+        "./markdown-preview-out/index.js",
+        "./drawio/src/main/webapp/js/viewer-static.min.js",
+        "./src/inline-editor/webview/previewInit.js"
+      ]
+    },
+    {
+      "name": "R3-mermaid_02-large.md.contributionStyles",
+      "value": [
+        "./markdown.css",
+        "./media/markdown.css",
+        "./media/highlight.css",
+        "./notebook-out/katex.min.css",
+        "./preview-styles/index.css",
+        "./src/inline-editor/webview/preview.css"
+      ]
+    },
+    {
+      "name": "R3-mermaid_02-large.md.probeInjected",
+      "value": true
+    },
+    {
+      "name": "R3-mermaid_02-large.md.probe",
+      "value": {
+        "label": "R3-mermaid_02-large.md",
+        "mermaidDivs": 3,
+        "mermaidSvgs": 3,
+        "tocLinks": 5,
+        "h1": 1,
+        "h2": 4,
+        "h3": 0,
+        "h4": 0,
+        "katexNodes": 0,
+        "imgCount": 0,
+        "imgSrc": null,
+        "imgResolvedToWebviewUri": null,
+        "imgLoaded": null,
+        "imgLoadedCount": 0,
+        "violations": []
+      }
+    },
+    {
+      "name": "R4-image_01-sizes.md.render.commandExistsBeforeActivation",
+      "value": true
+    },
+    {
+      "name": "R4-image_01-sizes.md.render.returnType",
+      "value": "string"
+    },
+    {
+      "name": "R4-image_01-sizes.md.render.error",
+      "value": null
+    },
+    {
+      "name": "R4-image_01-sizes.md.render.length",
+      "value": 7124
+    },
+    {
+      "name": "R4-image_01-sizes.md.render.mermaidDivPresent",
+      "value": false
+    },
+    {
+      "name": "R4-image_01-sizes.md.render.katexRendered",
+      "value": false
+    },
+    {
+      "name": "R4-image_01-sizes.md.render.headingHasId",
+      "value": true
+    },
+    {
+      "name": "R4-image_01-sizes.md.render.relativeImgSrcKept",
+      "value": true
+    },
+    {
+      "name": "R4-image_01-sizes.md.render.headingCounts",
+      "value": {
+        "h1": 1,
+        "h2": 9,
+        "h3": 0,
+        "h4": 0,
+        "h5": 0,
+        "h6": 0
+      }
+    },
+    {
+      "name": "R4-image_01-sizes.md.contributionScripts",
+      "value": [
+        "./media/index.js",
+        "./markdown-preview-out/index.js",
+        "./drawio/src/main/webapp/js/viewer-static.min.js",
+        "./src/inline-editor/webview/previewInit.js"
+      ]
+    },
+    {
+      "name": "R4-image_01-sizes.md.contributionStyles",
+      "value": [
+        "./markdown.css",
+        "./media/markdown.css",
+        "./media/highlight.css",
+        "./notebook-out/katex.min.css",
+        "./preview-styles/index.css",
+        "./src/inline-editor/webview/preview.css"
+      ]
+    },
+    {
+      "name": "R4-image_01-sizes.md.probeInjected",
+      "value": true
+    },
+    {
+      "name": "R4-image_01-sizes.md.probe",
+      "value": {
+        "label": "R4-image_01-sizes.md",
+        "mermaidDivs": 0,
+        "mermaidSvgs": 0,
+        "tocLinks": 10,
+        "h1": 1,
+        "h2": 9,
+        "h3": 0,
+        "h4": 0,
+        "katexNodes": 0,
+        "imgCount": 10,
+        "imgSrc": "../assets/images/grid-4000x3000.png",
+        "imgResolvedToWebviewUri": false,
+        "imgLoaded": true,
+        "imgLoadedCount": 10,
+        "violations": []
+      }
+    }
+  ]
+}

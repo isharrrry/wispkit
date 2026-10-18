@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>R5-01 基础跳转</title>
+<link rel="stylesheet" href="../assets/html/css/demo.css">
+</head>
+<body>
+<h1>R5-01 vscode:// 内部跳转（基础）</h1>
+
+<p>用 <strong>Wispkit HTML</strong> 打开本文件（右键 → <em>Reopen Editor With…</em> → Wispkit HTML），然后逐条点。</p>
+
+<p>核心机制：HTML 里的 <code>vscode://file/&lt;路径&gt;:&lt;行号&gt;</code> 会被改写成 <code>command:vscode.open?…</code>，
+配合 webview 的 <code>enableCommandUris</code>，点击后在<strong>当前窗口</strong>打开目标文件并定位到那一行。</p>
+
+<hr>
+
+<h2>1. 带行号（→ target-simple.md 第 7 行）</h2>
+<p><a id="jump-line7" href="vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/R5-jump/targets/target-simple.md:7">跳到 target-simple.md:7</a></p>
+<p>期望：目标文件在当前窗口打开，光标停在第 7 行，那行写着 <code>LINE-07-MARKER</code>。</p>
+
+<h2>2. 不带行号（→ 文件开头）</h2>
+<p><a id="jump-noline" href="vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/R5-jump/targets/target-simple.md">打开 target-simple.md（无行号）</a></p>
+<p>期望：打开文件，<strong>不</strong>定位（光标位置由编辑器自己决定）。</p>
+
+<h2>3. 文件末尾行（→ 第 20 行）</h2>
+<p><a id="jump-line20" href="vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/R5-jump/targets/target-simple.md:20">跳到 target-simple.md:20</a></p>
+<p>期望：光标停在第 20 行（<code>LINE-20-MARKER</code>）。</p>
+
+<h2>4. 中文 + 空格路径（百分号编码，推荐形式）</h2>
+<p><a id="jump-cn-encoded" href="vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/R5-jump/targets/%E7%9B%AE%E6%A0%87%20%E4%B8%AD%E6%96%87%E7%A9%BA%E6%A0%BC.md:9">跳到「目标 中文空格.md」第 9 行（编码）</a></p>
+<p>期望：打开 <code>目标 中文空格.md</code>，光标在第 9 行（<code>LINE-09-MARKER</code>）。</p>
+
+<h2>5. 中文 + 空格路径（未编码，观察项）</h2>
+<p><a id="jump-cn-raw" href="vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/R5-jump/targets/目标 中文空格.md:9">跳到「目标 中文空格.md」第 9 行（未编码）</a></p>
+<p>期望：<strong>也应该成功</strong>（改写逻辑会做一次 decode）。若失败，请记下实际报错——那是"两种写法只支持一种"的证据。</p>
+
+<h2>6. 深目录（三层）</h2>
+<p><a id="jump-deep" href="vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/R5-jump/targets/deep/nested/target-deep.md:11">跳到 deep/nested/target-deep.md:11</a></p>
+<p>期望：多级斜杠不被吃掉，光标停在第 11 行（<code>LINE-11-MARKER</code>）。</p>
+
+<hr>
+
+<h2>7. 相对路径资源（验证 &lt;base href&gt;）</h2>
+
+<p class="r5-css-probe">这段文字带左侧绿色竖条 + 深绿加粗 → 说明 <code>../assets/html/css/demo.css</code> 加载成功。</p>
+
+<p id="js-probe">（这里应被外部 JS 改写；如果一直显示这句话，说明外部 JS 没执行）</p>
+
+<p><img src="../assets/images/checker-64x64.png" alt="棋盘小图" width="64" height="64">
+上面这张棋盘图来自 <code>../assets/images/checker-64x64.png</code>（<strong>跨目录</strong>相对路径）。</p>
+
+<p><strong>重要前提</strong>：<code>../assets/</code> 在 <code>R5-jump/</code> 之外，只有把 <code>demo</code> 作为
+<strong>文件夹</strong>打开（而不是单独打开这个文件）时，它才落在 webview 的 <code>localResourceRoots</code> 里。
+如果这张图显示成裂图、样式也没生效 → 说明你是"单文件打开"的，请改用 <em>File → Open Folder</em> 打开 <code>demo</code>。</p>
+
+<hr>
+
+<h2>8. 对照：普通链接（不该被我们的改写碰到）</h2>
+<p><a href="https://code.visualstudio.com">https 外部链接</a> —— 期望交给系统浏览器。</p>
+<p><a href="targets/target-simple.md">相对链接指向 targets/target-simple.md</a> —— <strong>观察项</strong>：
+它会被 <code>&lt;base&gt;</code> 解析成 <code>vscode-webview://…</code>，而该 scheme 不在宿主白名单里，预计<strong>点不动</strong>。
+这是"HTML 视图不是 Web 服务器"的固有限制，不是缺陷。</p>
+
+<script src="../assets/html/js/demo.js"></script>
+<script>
+	// 内联脚本：HTML 视图用的是宽松 CSP（'unsafe-inline'），所以这里应该能跑。
+	// 对照：同一段代码放在 R1-injection/03-csp-boundaries.md 里会被拦住。
+	window.__r5InlineScriptRan = true;
+	document.title = 'R5-01 基础跳转（内联脚本已执行）';
+</script>
+</body>
+</html>

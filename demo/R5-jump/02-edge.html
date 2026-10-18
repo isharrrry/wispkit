@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>R5-02 跳转边界</title>
+<style>
+	body { font-family: system-ui, sans-serif; line-height: 1.6; margin: 24px; }
+	code { background: #f2f2f2; padding: 1px 4px; }
+	.watch { background: #fff8e1; border-left: 5px solid #f0b400; padding: 8px 12px; }
+	.ok { background: #e8f5e9; border-left: 5px solid #2e7d32; padding: 8px 12px; }
+</style>
+</head>
+<body>
+<h1>R5-02 跳转边界（观察项集合）</h1>
+
+<p>这一份<strong>不是通过/失败题</strong>，而是把改写逻辑的边界一次性摆出来。
+每条都写了"我预期的行为"，你只需要核对实际是否一致。</p>
+
+<div class="ok"><strong>先确认基线：</strong>如果 <a href="vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/R5-jump/targets/target-simple.md:7">这一条基础跳转</a>都点不动，
+就不用往下看了——先解决"HTML 视图 + enableCommandUris"这条主通路。</div>
+
+<hr>
+
+<h2>1. 行号 = 0（预期：只打开文件，不定位）</h2>
+<p><a id="edge-line0" href="vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/R5-jump/targets/target-simple.md:0">target-simple.md:0</a></p>
+<div class="watch">改写逻辑里 <code>line &lt; 1</code> 会被当作"没有行号"，所以只传资源、不传 selection。
+预期：文件打开、光标不动。<strong>若报错</strong>说明这个分支写错了。</div>
+
+<h2>2. 行号越界（文件只有 20 行，这里写 999999）</h2>
+<p><a id="edge-overflow" href="vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/R5-jump/targets/target-simple.md:999999">target-simple.md:999999</a></p>
+<div class="watch">观察项：VS Code 可能①把行号夹到文件末尾，②直接报错，③打开但不定位。三种都可接受，记下实际是哪种。</div>
+
+<h2>3. 行号不是数字（<code>:abc</code>，预期：改写真不动它）</h2>
+<p><a id="edge-nan" href="vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/R5-jump/targets/target-simple.md:abc">target-simple.md:abc</a></p>
+<div class="watch">正则只认 <code>:数字</code> 结尾，所以整串会被当成<strong>文件名</strong> <code>target-simple.md:abc</code>（不存在）。
+预期：报"文件找不到"之类。<strong>这算符合设计</strong>，只是不友好。</div>
+
+<h2>4. 文件名以数字结尾（测惰性正则会不会切错）</h2>
+<p><a id="edge-numeric-name" href="vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/assets/images/solid-320x240.gif">solid-320x240.gif（无行号）</a></p>
+<div class="watch">文件名里含 <code>320x240</code>。预期：整个路径被当作文件、<strong>不会</strong>把 <code>240</code> 当成行号切掉。
+若报错找不到文件 → 正则贪婪/惰性写错了（这是个经典的切分陷阱）。</div>
+
+<h2>5. fragment 形式（<code>#L10</code>，预期：不改写）</h2>
+<p><a id="edge-fragment" href="vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/R5-jump/targets/target-simple.md#L10">target-simple.md#L10</a></p>
+<div class="watch">有些工具（GitHub 风格）用 <code>#L10</code> 表示行号，我们的改写只认 <code>:10</code> 形式。
+预期：原样保留 → 走 <code>vscode:</code> 白名单 → 由<strong>系统协议处理器</strong>接管（可能另起窗口）。
+若你希望也支持 <code>#L10</code>，这是个明确的功能请求。</div>
+
+<h2>6. 直接写 <code>command:</code> 链接（验证 enableCommandUris）</h2>
+<p><a id="edge-command" href="command:vscode.open?%5B%22file%3A%2F%2F%2FD%3A%2FAllData%2FAIDATA%2Ftechsearch%2FWispkit%2Fdemo%2FR5-jump%2Ftargets%2Ftarget-simple.md%22%5D">command:vscode.open 打开 target-simple.md</a></p>
+<div class="watch">这条不是改写出来的，是<strong>手写</strong>的 <code>command:</code> URI。
+预期：能在当前窗口打开文件。<strong>这就是 <code>enableCommandUris: true</code> 存在的意义</strong>——
+没有这个开关，所有 <code>command:</code> 一律被宿主拒绝。</div>
+
+<h2>7. 非 file 的 vscode 链接（预期：走系统协议）</h2>
+<p><a id="edge-vscode-other" href="vscode://settings/wispkit.toc.depth">vscode://settings/wispkit.toc.depth</a></p>
+<div class="watch">不是 <code>vscode://file/</code> 形式 → 不改写。但 <code>vscode</code> 在宿主白名单里，预计能被受理（可能弹窗/另起窗口）。</div>
+
+<h2>8. 自定义 scheme（预期：被拒）</h2>
+<p><a id="edge-custom-scheme" href="wispkit-demo://open?file=target-simple.md">wispkit-demo://open?file=…</a></p>
+<div class="watch">既不在白名单、也不是 <code>command:</code> → 预期<strong>点不动</strong>（控制台可能有拒绝日志）。
+这条用来确认"白名单确实在起作用"。</div>
+
+<h2>9. 纯锚点（预期：页内跳转，正常）</h2>
+<p><a id="edge-anchor" href="#edge-anchor">跳到本行自身（#edge-anchor）</a></p>
+<div class="watch">锚点不该被误判成文件链接。预期：页面滚动到本段（无变化也算正常，它就在眼前）。</div>
+
+<h2>10. 大小写与反斜杠</h2>
+<p><a id="edge-case" href="vscode://file/d:/alldata/aidata/techsearch/Wispkit/demo/R5-jump/targets/target-simple.md:7">小写盘符 d:/ 路径</a></p>
+<p><a id="edge-backslash" href="vscode://file/D:\AllData\AIDATA\techsearch\Wispkit\demo\R5-jump\targets\target-simple.md:7">反斜杠路径 D:\…</a></p>
+<div class="watch">改写逻辑会把 <code>\</code> 统一成 <code>/</code>。
+预期：反斜杠那条<strong>能工作</strong>（Windows 上人工写链接常这么写）；小写盘符那条也应变通（Windows 不区分大小写）。</div>
+
+<hr>
+<p>全部试完后，把与预期不符的编号告诉我（例如"2 是直接报错、5 能另起窗口但很慢"），我按实际表现决定要不要改。</p>
+</body>
+</html>

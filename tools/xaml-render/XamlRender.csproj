@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <AssemblyName>XamlRender</AssemblyName>
+    <RootNamespace>XamlRender</RootNamespace>
+    <!-- 本目录会放真实 XAML 素材：默认的 Page glob 会把它们当编译项，报 MC3074/MC6024 -->
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <!-- 注意：不要设 InvariantGlobalization=true，DataGrid 之类会因非中性区域性直接抛错 -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>

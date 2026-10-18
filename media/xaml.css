@@ -1,0 +1,480 @@
+/* `.xaml` 视图：左源码 / 右渲染图。手势与图片视图共用同一套（滚轮缩放、右键平移、双击复位）。 */
+html,
+body {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size, 13px);
+	overflow: hidden;
+}
+
+.wispkit-xaml-shell {
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+}
+
+.wispkit-xaml-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex: 0 0 auto;
+	padding: 4px 6px;
+	border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+	background: var(--vscode-sideBar-background, transparent);
+}
+
+.wispkit-xaml-toolbar-spacer {
+	flex: 1 1 auto;
+}
+
+.wispkit-xaml-dirty {
+	color: var(--vscode-editorWarning-foreground, #cca700);
+	white-space: nowrap;
+}
+
+.wispkit-xaml-dirty[hidden] {
+	display: none;
+}
+
+.wispkit-xaml-status {
+	opacity: 0.75;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* 内联 SVG sprite：内容零尺寸，只为让 <use> 有东西可引 */
+.wispkit-xaml-sprite {
+	position: absolute;
+	width: 0;
+	height: 0;
+	overflow: hidden;
+}
+
+/* 工具栏按钮 = 图标 + 文字。图标线条统一用 currentColor，因此颜色自动跟随主题、
+   悬停与三态按钮的激活态（`.wispkit-xaml-btn-active`），无需为每个状态单独配色。 */
+.wispkit-xaml-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font: inherit;
+	color: var(--vscode-foreground);
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	padding: 2px 8px;
+	line-height: 18px;
+	cursor: pointer;
+}
+
+.wispkit-xaml-btn-icon {
+	display: block;
+	flex: none;
+	width: 14px;
+	height: 14px;
+}
+
+.wispkit-xaml-btn:hover {
+	background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+}
+
+.wispkit-xaml-btn:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* 三态布局按钮组：当前态必须一眼可见 */
+.wispkit-xaml-btn-active {
+	background: var(--vscode-button-secondaryBackground, var(--vscode-list-activeSelectionBackground));
+	color: var(--vscode-button-secondaryForeground, var(--vscode-list-activeSelectionForeground));
+}
+
+.wispkit-xaml-layout-group {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.wispkit-xaml-toolbar-separator {
+	width: 1px;
+	align-self: stretch;
+	margin: 2px 4px;
+	background: var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+}
+
+.wispkit-xaml-layout {
+	display: flex;
+	flex: 1 1 auto;
+	min-height: 0;
+	align-items: stretch;
+}
+
+/*
+ * 源码区 = 行号栏 + 可编辑 textarea。
+ * 对齐的硬条件：两者 font-family / font-size / line-height / padding-top 必须完全一致，
+ * 所以行高与字号都用固定值（不跟随 VS Code 的编辑器字体设置，否则两者可能被设成不同值而串行）。
+ * 宽度由脚本写入行内 style（可拖拽、可双击复位）。
+ */
+.wispkit-xaml-code-pane {
+	--wispkit-xaml-line-height: 20px;
+	--wispkit-xaml-code-font-size: 13px;
+	flex: 0 0 auto;
+	display: flex;
+	align-items: stretch;
+	width: 460px;
+	overflow: hidden;
+	box-sizing: border-box;
+	border-right: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+	/*
+	 * 必须是编辑器背景：这里曾经用 textCodeBlock-background，于是整个源码区被涂成一块
+	 * 与编辑器明显不同的色块（就是用户说的"多余的代码行区域背景色"）。
+	 */
+	background: var(--vscode-editor-background);
+}
+
+/*
+ * 收纳右侧（只显示源码）：源码区吃掉渲染区让出的空间。
+ * 光靠 [hidden] 不够 —— code-pane 是 flex: 0 0 auto 且脚本会给它写固定像素宽度，
+ * 渲染区一消失，右侧就留一片空白（"区域还在"）。
+ */
+.wispkit-xaml-layout[data-layout='code'] .wispkit-xaml-code-pane {
+	flex: 1 1 auto;
+	width: auto;
+	border-right: 0;
+}
+
+.wispkit-xaml-code-pane[hidden] {
+	display: none;
+}
+
+.wispkit-xaml-gutter {
+	flex: 0 0 auto;
+	overflow: hidden;
+	/* 上下内边距必须与 .wispkit-xaml-editor 相同，第一行行号才对得上第一行文本 */
+	padding: 8px 8px 8px 10px;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: var(--wispkit-xaml-code-font-size);
+	line-height: var(--wispkit-xaml-line-height);
+	text-align: right;
+	opacity: 0.45;
+	user-select: none;
+	pointer-events: none;
+}
+
+.wispkit-xaml-gutter-line {
+	display: block;
+	height: var(--wispkit-xaml-line-height);
+}
+
+/*
+ * 高亮层与 textarea 叠放：textarea 的文字透明、只留光标，真正显示的是下面那层 <pre>。
+ * 两层必须 font-family / font-size / line-height / padding / white-space / tab-size 完全一致，
+ * 否则光标会与显示的文字逐行错开。
+ */
+.wispkit-xaml-editor-wrap {
+	position: relative;
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+}
+
+/*
+ * 两层各自完整声明同一套度量（不抽共享规则：改动其中一层时，另一层的对应项就在旁边，
+ * 漏改一眼就能看到）。任何一项不一致，显示的文字就会与 textarea 里的光标错开。
+ */
+.wispkit-xaml-highlight {
+	position: absolute;
+	inset: 0;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 8px 10px;
+	border: 0;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: var(--wispkit-xaml-code-font-size);
+	line-height: var(--wispkit-xaml-line-height);
+	white-space: pre;
+	tab-size: 4;
+	/* 不显示滚动条，但仍能被程序化设置 scrollTop/scrollLeft 来跟随编辑器 */
+	overflow: hidden;
+	pointer-events: none;
+	color: inherit;
+	background: transparent;
+	/*
+	 * 必须叠在 textarea 之上：选中时浏览器用不透明的 `editor.selectionBackground` 填充选区，
+	 * 而 textarea 的文字是透明的。若 textarea 在上层，那块不透明色会把高亮文字整块盖住
+	 * （表现就是"选中后前景色和背景色一样、看不见内容"）。提到上层后色块在下、彩色文字在上，两者都可见。
+	 */
+	z-index: 1;
+}
+
+/*
+ * 覆盖 VS Code webview 外壳注入的 `code` 规则
+ * （`out/vs/workbench/contrib/webview/browser/pre/index.html:145-151`）：
+ * 它给 `code` 铺了 `background-color: var(--vscode-textPreformat-background)`（半透明灰），
+ * 而外壳只顺带清了 `pre code` 的 padding、**没有**清 background。
+ *
+ * 高亮层的 `<code>` 是 inline 且父级 `white-space: pre` 跨多行，那层背景会沿**每一行的行盒**
+ * 铺开，就是"每行一条半透明灰带"。上面 `.wispkit-xaml-highlight` 的 `background: transparent`
+ * 只作用于 `<pre>` 本身，管不到里面的 `<code>`，所以必须单独覆盖。
+ *
+ * `color` 显式取编辑器前景：`<code>` 若用 inherit，会继承到与 textarea 无关的祖先链，
+ * 而 textarea 的文字是 `transparent` —— 显式取值避免这类意外。token 颜色仍由 `.wispkit-xaml-*`
+ * 那组 class 规则决定，优先级更高。
+ */
+.wispkit-xaml-highlight code {
+	background: transparent;
+	color: var(--vscode-editor-foreground, var(--vscode-foreground));
+}
+
+.wispkit-xaml-editor {
+	position: absolute;
+	inset: 0;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 8px 10px;
+	border: 0;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: var(--wispkit-xaml-code-font-size);
+	line-height: var(--wispkit-xaml-line-height);
+	/* 必须不折行：折行会让一个逻辑行占多行，行号与高亮立刻串位 */
+	white-space: pre;
+	tab-size: 4;
+	overflow: auto;
+	border-radius: 0;
+	outline: none;
+	resize: none;
+	color: transparent;
+	caret-color: var(--vscode-editor-foreground, #cccccc);
+	background: transparent;
+}
+
+/* 选区用半透明底：高亮文字仍能透出来，不会变成一块实心色 */
+.wispkit-xaml-editor::selection {
+	background: var(--vscode-editor-selectionBackground, rgba(38, 79, 120, 0.6));
+}
+
+.wispkit-xaml-editor:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/*
+ * 语法高亮配色。全部走 VS Code 主题变量，浅色与深色主题都由主题自己保证可读；
+ * 兜底值只在主题没定义该变量时生效。
+ */
+.wispkit-hl-comment {
+	color: var(--vscode-descriptionForeground, #6a9955);
+	font-style: italic;
+}
+
+.wispkit-hl-tag {
+	color: var(--vscode-symbolIcon-classForeground, var(--vscode-charts-blue, #569cd6));
+}
+
+.wispkit-hl-attr {
+	color: var(--vscode-debugTokenExpression-name, var(--vscode-charts-blue, #9cdcfe));
+}
+
+.wispkit-hl-string,
+.wispkit-hl-cdata {
+	color: var(--vscode-debugTokenExpression-string, var(--vscode-charts-orange, #ce9178));
+}
+
+.wispkit-hl-text {
+	color: var(--vscode-debugTokenExpression-number, var(--vscode-charts-orange, #ce9178));
+}
+
+.wispkit-hl-preproc,
+.wispkit-hl-doctype {
+	color: var(--vscode-charts-purple, #c586c0);
+}
+
+.wispkit-hl-keyword {
+	color: var(--vscode-charts-blue, #569cd6);
+}
+
+.wispkit-hl-type {
+	color: var(--vscode-symbolIcon-classForeground, var(--vscode-charts-green, #4ec9b0));
+}
+
+.wispkit-hl-number {
+	color: var(--vscode-debugTokenExpression-number, var(--vscode-charts-green, #b5cea8));
+}
+
+.wispkit-hl-attribute {
+	color: var(--vscode-charts-yellow, #dcdcaa);
+}
+
+.wispkit-xaml-splitter {
+	flex: 0 0 auto;
+	width: 5px;
+	cursor: col-resize;
+	background: transparent;
+}
+
+.wispkit-xaml-splitter[hidden] {
+	display: none;
+}
+
+.wispkit-xaml-splitter:hover,
+.wispkit-xaml-resizing {
+	background: var(--vscode-focusBorder, rgba(128, 128, 128, 0.6));
+}
+
+.wispkit-xaml-preview-pane {
+	flex: 1 1 auto;
+	position: relative;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.wispkit-xaml-preview-pane[hidden] {
+	display: none;
+}
+
+.wispkit-xaml-viewport {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	cursor: grab;
+}
+
+.wispkit-xaml-viewport[hidden] {
+	display: none;
+}
+
+.wispkit-xaml-viewport.wispkit-dragging {
+	cursor: grabbing;
+}
+
+.wispkit-xaml-image {
+	transform-origin: center center;
+	will-change: transform;
+	max-width: none;
+}
+
+.wispkit-xaml-error {
+	position: absolute;
+	inset: 0;
+	margin: 0;
+	padding: 24px;
+	overflow: auto;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+}
+
+.wispkit-xaml-error[hidden] {
+	display: none;
+}
+
+.wispkit-xaml-error-title {
+	margin: 0 0 4px;
+	font-size: 1.1em;
+	color: var(--vscode-errorForeground, #f48771);
+}
+
+.wispkit-xaml-error-type {
+	margin: 0 0 12px;
+	opacity: 0.8;
+}
+
+.wispkit-xaml-error-message {
+	max-width: 720px;
+	max-height: 40vh;
+	overflow: auto;
+	text-align: left;
+	margin: 0 0 16px;
+	padding: 10px 12px;
+	white-space: pre-wrap;
+	word-break: break-word;
+	border: 1px solid var(--vscode-inputValidation-errorBorder, #be1100);
+	background: var(--vscode-inputValidation-errorBackground, transparent);
+	font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.wispkit-xaml-error-hint {
+	max-width: 720px;
+	margin: 0;
+	opacity: 0.75;
+	line-height: 1.6;
+}
+
+.wispkit-xaml-error-hint code {
+	font-family: var(--vscode-editor-font-family, monospace);
+}
+
+/* 放大预览（复用 shared/lightbox.js 的结构与 class 约定） */
+.wispkit-xaml-lightbox {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	display: flex;
+	flex-direction: column;
+	background: var(--vscode-editor-background);
+}
+
+.wispkit-xaml-lightbox[hidden] {
+	display: none;
+}
+
+.wispkit-xaml-lightbox-bar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 0 0 auto;
+	padding: 6px 10px;
+	border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+	background: var(--vscode-sideBar-background, transparent);
+}
+
+.wispkit-xaml-lightbox-title {
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.wispkit-xaml-lightbox-zoom {
+	margin-left: auto;
+	opacity: 0.7;
+}
+
+.wispkit-xaml-lightbox-body {
+	flex: 1 1 auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+	overflow: hidden;
+	cursor: grab;
+}
+
+.wispkit-xaml-lightbox-body.wispkit-dragging {
+	cursor: grabbing;
+}
+
+.wispkit-xaml-lightbox-stage {
+	transform-origin: center center;
+	will-change: transform;
+}
+
+.wispkit-xaml-lightbox-stage img {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
+body.wispkit-lightbox-open {
+	overflow: hidden;
+}

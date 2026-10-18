@@ -1,0 +1,15 @@
+{
+	"name": "wispkit-selftest",
+	"displayName": "Wispkit Selftest",
+	"description": "临时自检扩展：在真实 VS Code 里验证 Wispkit 的渲染与扩展点机制。不随 VSIX 发布。",
+	"version": "0.0.1",
+	"publisher": "narnat-local",
+	"private": true,
+	"engines": {
+		"vscode": "^1.71.0"
+	},
+	"main": "./extension.js",
+	"activationEvents": [
+		"*"
+	]
+}

@@ -1,0 +1,15 @@
+{
+	"name": "wispkit-func-demo-tools",
+	"private": true,
+	"type": "module",
+	"description": "demo 的素材生成与自检脚本",
+	"scripts": {
+		"gen:images": "powershell -NoProfile -ExecutionPolicy Bypass -File gen-images.ps1",
+		"gen:fixtures": "node gen-fixtures.mjs",
+		"gen:webp": "node gen-webp-avif.mjs",
+		"check": "node check-fixtures.mjs"
+	},
+	"dependencies": {
+		"sharp": "^0.35.5"
+	}
+}

@@ -1,0 +1,50 @@
+html,
+body {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+	font-family: var(--vscode-font-family);
+}
+
+.wispkit-image-viewport {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	cursor: grab;
+	touch-action: none;
+	user-select: none;
+}
+
+.wispkit-image-viewport.wispkit-dragging {
+	cursor: grabbing;
+}
+
+.wispkit-image-viewport img {
+	display: block;
+	max-width: none;
+	max-height: none;
+	transform-origin: center center;
+	will-change: transform;
+	user-select: none;
+	-webkit-user-drag: none;
+	box-shadow: 0 0 0 1px var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+}
+
+.wispkit-image-hint {
+	position: absolute;
+	right: 10px;
+	bottom: 8px;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	opacity: 0.75;
+	background: var(--vscode-editorWidget-background, rgba(0, 0, 0, 0.4));
+	color: var(--vscode-editorWidget-foreground, inherit);
+	pointer-events: none;
+}

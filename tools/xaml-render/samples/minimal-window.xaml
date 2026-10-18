@@ -1,0 +1,10 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="最小对照" Width="360" Height="220">
+  <Grid Background="#FFE8F0FE">
+    <StackPanel Margin="24">
+      <TextBlock Text="RootObjectInstance 对照样本" FontSize="16" FontWeight="Bold" />
+      <Button Content="按钮" Margin="0,12,0,0" Padding="12,4" />
+    </StackPanel>
+  </Grid>
+</Window>

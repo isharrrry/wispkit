@@ -1,0 +1,82 @@
+<Grid
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Width="620"
+    Height="400">
+    <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+        <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <TextBlock
+        Grid.Row="0"
+        Margin="14,12,14,8"
+        FontSize="17"
+        FontWeight="Bold"
+        Text="数据展示示例 · 列表 / 分页 / 进度" />
+
+    <Grid Grid.Row="1" Margin="14,0,14,0">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="1.3*" />
+        </Grid.ColumnDefinitions>
+
+        <GroupBox Grid.Column="0" Header="ListBox（静态项）">
+            <ListBox SelectedIndex="1">
+                <ListBoxItem Content="采集通道 1" />
+                <ListBoxItem Content="采集通道 2" />
+                <ListBoxItem Content="采集通道 3" />
+                <ListBoxItem Content="采集通道 4" />
+                <ListBoxItem Content="采集通道 5" />
+            </ListBox>
+        </GroupBox>
+
+        <GroupBox Grid.Column="2" Header="TabControl（分页）">
+            <TabControl>
+                <TabItem Header="总览">
+                    <StackPanel Margin="8">
+                        <TextBlock Margin="0,0,0,6" Text="温度　　36.5 ℃" />
+                        <TextBlock Margin="0,0,0,6" Text="压力　　1.24 MPa" />
+                        <TextBlock Text="转速　　2980 rpm" />
+                    </StackPanel>
+                </TabItem>
+                <TabItem Header="通道">
+                    <StackPanel Margin="8">
+                        <TextBlock Margin="0,0,0,6" Text="通道 1　正常" />
+                        <TextBlock Margin="0,0,0,6" Text="通道 2　正常" />
+                        <TextBlock Text="通道 3　偏高" />
+                    </StackPanel>
+                </TabItem>
+                <TabItem Header="日志">
+                    <TextBlock
+                        Margin="8"
+                        TextWrapping="Wrap"
+                        Text="12:00:01 采集开始&#x0a;12:00:02 已连接&#x0a;12:00:05 数据入库完成" />
+                </TabItem>
+            </TabControl>
+        </GroupBox>
+    </Grid>
+
+    <Border
+        Grid.Row="2"
+        Margin="14,12,14,14"
+        Padding="10"
+        Background="#FFF7F7F7"
+        BorderBrush="#FFDDDDDD"
+        BorderThickness="1">
+        <StackPanel>
+            <TextBlock Margin="0,0,0,6" Text="采集进度" />
+            <ProgressBar
+                Height="18"
+                Maximum="100"
+                Minimum="0"
+                Value="72" />
+            <TextBlock
+                Margin="0,8,0,0"
+                Foreground="#FF666666"
+                Text="72% · 已完成 18 / 25 个通道" />
+        </StackPanel>
+    </Border>
+</Grid>

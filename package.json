@@ -1,0 +1,375 @@
+{
+	"name": "wispkit",
+	"displayName": "Wispkit",
+	"description": "Browsing enhancements for Markdown, images, HTML and XAML: preview-script injection with nonce/CSP, table of contents, default wheel zoom, right-drag pan, media context menu (save as / copy path / copy source), drawio block editing, and in-editor vscode:// navigation.",
+	"version": "0.1.0",
+	"publisher": "narnat",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.71.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"keywords": [
+		"markdown",
+		"preview",
+		"image",
+		"zoom",
+		"mermaid",
+		"drawio",
+		"xaml",
+		"toc"
+	],
+	"main": "./out/extension.js",
+	"activationEvents": [
+		"onCustomEditor:wispkit.markdown",
+		"onCustomEditor:wispkit.image",
+		"onCustomEditor:wispkit.html",
+		"onCustomEditor:wispkit.xaml",
+		"onCommand:wispkit.openWith",
+		"onCommand:wispkit.toggleReadOnly",
+		"onCommand:wispkit.subtree.open",
+		"onCommand:wispkit.wispkitView.open",
+		"onCustomEditor:wispkit.text",
+		"onStartupFinished"
+	],
+	"contributes": {
+		"customEditors": [
+			{
+				"viewType": "wispkit.markdown",
+				"displayName": "Wispkit Markdown",
+				"selector": [
+					{
+						"filenamePattern": "*.md"
+					},
+					{
+						"filenamePattern": "*.markdown"
+					}
+				],
+				"priority": "default"
+			},
+			{
+				"viewType": "wispkit.image",
+				"displayName": "Wispkit Image",
+				"selector": [
+					{
+						"filenamePattern": "*.{png,jpg,jpe,jpeg,bmp,gif,ico,webp,avif}"
+					}
+				],
+				"priority": "default"
+			},
+			{
+				"viewType": "wispkit.html",
+				"displayName": "Wispkit HTML",
+				"selector": [
+					{
+						"filenamePattern": "*.html"
+					},
+					{
+						"filenamePattern": "*.htm"
+					}
+				],
+				"priority": "option"
+			},
+			{
+				"viewType": "wispkit.xaml",
+				"displayName": "Wispkit XAML（源码 + 渲染）",
+				"selector": [
+					{
+						"filenamePattern": "*.xaml"
+					}
+				],
+				"priority": "default"
+			},
+			{
+				"viewType": "wispkit.text",
+				"displayName": "Wispkit 只读文本",
+				"selector": [
+					{
+						"filenamePattern": "*"
+					}
+				],
+				"priority": "option"
+			}
+		],
+		"commands": [
+			{
+				"command": "wispkit.openWith",
+				"title": "Open with Wispkit",
+				"category": "Wispkit",
+				"icon": "$(preview)"
+			},
+			{
+				"command": "wispkit.toggleReadOnly",
+				"title": "切换全局只读模式",
+				"category": "Wispkit",
+				"icon": "$(lock)"
+			},
+			{
+				"command": "wispkit.subtree.open",
+				"title": "浏览子树",
+				"category": "Wispkit",
+				"icon": "$(list-tree)"
+			},
+			{
+				"command": "wispkit.wispkitView.open",
+				"title": "展示（.WispkitView）",
+				"category": "Wispkit",
+				"icon": "$(open-preview)"
+			}
+		],
+		"menus": {
+			"editor/title": [
+				{
+					"command": "wispkit.openWith",
+					"when": "resourceLangId == markdown && activeCustomEditorId == ''",
+					"group": "navigation@1"
+				}
+			],
+			"explorer/context": [
+				{
+					"command": "wispkit.wispkitView.open",
+					"when": "explorerResourceIsFolder",
+					"group": "inline@1"
+				},
+				{
+					"command": "wispkit.subtree.open",
+					"when": "explorerResourceIsFolder",
+					"group": "inline@2"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "wispkit.subtree.open",
+					"when": "false"
+				},
+				{
+					"command": "wispkit.wispkitView.open",
+					"when": "false"
+				}
+			]
+		},
+		"configuration": {
+			"title": "Wispkit",
+			"properties": {
+				"wispkit.toc.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show the table of contents sidebar in the Wispkit Markdown view."
+				},
+				"wispkit.toc.depth": {
+					"type": "number",
+					"default": 3,
+					"minimum": 1,
+					"maximum": 6,
+					"description": "Deepest heading level listed in the table of contents."
+				},
+				"wispkit.zoom.wheelStep": {
+					"type": "number",
+					"default": 1.1,
+					"minimum": 1.01,
+					"maximum": 3,
+					"description": "Zoom factor applied per wheel notch."
+				},
+				"wispkit.image.wheelZoom": {
+					"type": "boolean",
+					"default": true,
+					"description": "Zoom the image on a plain wheel scroll, without holding Ctrl."
+				},
+				"wispkit.image.dragButton": {
+					"type": "string",
+					"enum": [
+						"right",
+						"middle",
+						"left"
+					],
+					"default": "right",
+					"description": "Mouse button that pans the image while held down."
+				},
+				"wispkit.xaml.codeVisible": {
+					"type": "boolean",
+					"default": true,
+					"description": "显示 XAML 视图左侧的源码栏（与右侧渲染效果并排）。"
+				},
+				"wispkit.xaml.codeWidth": {
+					"type": "number",
+					"default": 460,
+					"minimum": 160,
+					"description": "XAML 视图左侧源码栏宽度（像素）。"
+				},
+				"wispkit.readonly.default": {
+					"type": "boolean",
+					"default": false,
+					"description": "启动时是否进入全局只读模式（也可点状态栏右侧的开关随时切换）。"
+				},
+				"wispkit.readonly.previewBytes": {
+					"type": "number",
+					"default": 65536,
+					"minimum": 1024,
+					"description": "只读模式下最多读取的字节数，超出的部分不加载（用来省渲染开销）。"
+				},
+				"wispkit.readonly.previewLines": {
+					"type": "number",
+					"default": 800,
+					"minimum": 50,
+					"description": "只读模式下最多显示的行数。"
+				},
+				"wispkit.readonly.extensions": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [
+						"*.txt",
+						"*.text",
+						"*.log",
+						"*.csv",
+						"*.ini",
+						"*.cfg",
+						"*.conf",
+						"*.properties",
+						"*.json",
+						"*.jsonc",
+						"*.json5",
+						"*.xml",
+						"*.yml",
+						"*.yaml",
+						"*.toml",
+						"*.ts",
+						"*.tsx",
+						"*.mts",
+						"*.cts",
+						"*.js",
+						"*.jsx",
+						"*.mjs",
+						"*.cjs",
+						"*.vue",
+						"*.svelte",
+						"*.py",
+						"*.cs",
+						"*.fs",
+						"*.vb",
+						"*.java",
+						"*.kt",
+						"*.go",
+						"*.rs",
+						"*.rb",
+						"*.php",
+						"*.swift",
+						"*.lua",
+						"*.pl",
+						"*.c",
+						"*.h",
+						"*.cc",
+						"*.cpp",
+						"*.cxx",
+						"*.hpp",
+						"*.m",
+						"*.mm",
+						"*.sql",
+						"*.sh",
+						"*.bash",
+						"*.zsh",
+						"*.ps1",
+						"*.psm1",
+						"*.bat",
+						"*.cmd",
+						"*.gradle",
+						"*.css",
+						"*.scss",
+						"*.less",
+						"*.styl",
+						"*.diff",
+						"*.patch"
+					],
+					"description": "全局只读模式生效的文件通配符（会写进 workbench.editorAssociations，让这些文件原生的打开方式就是只读视图）。刻意不含 Wispkit 自己接管的浏览类型（.md/.html/.xaml/图片）—— 截断它们会渲染出残缺结果。"
+				},
+				"wispkit.subtree.columns": {
+					"type": "array",
+					"default": [
+						"name",
+						"size",
+						"type",
+						"mtime",
+						"ctime",
+						"owner"
+					],
+					"items": {
+						"type": "string",
+						"enum": [
+							"name",
+							"ext",
+							"size",
+							"mtime",
+							"ctime",
+							"atime",
+							"owner",
+							"mode",
+							"type"
+						]
+					},
+					"description": "子树浏览视图里显示的列（数组顺序即列顺序）。"
+				},
+				"wispkit.subtree.tools": {
+					"type": "array",
+					"default": [],
+					"items": {
+						"type": "object",
+						"required": [
+							"label",
+							"command"
+						],
+						"properties": {
+							"label": {
+								"type": "string"
+							},
+							"command": {
+								"type": "string"
+							},
+							"args": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"shell": {
+								"type": "string",
+								"enum": [
+									"silent",
+									"currentTerminal",
+									"newTerminal",
+									"external"
+								]
+							}
+						}
+					},
+					"description": "子树浏览视图右侧的自定义工具；command/args 里可用 ${file} ${dir} ${name} ${workspaceFolder}。"
+				}
+			}
+		},
+		"configurationDefaults": {
+			"markdown-mermaid.mouseNavigation.enabled": "always"
+		}
+	},
+	"scripts": {
+		"compile": "tsc -p ./ && node esbuild.mjs",
+		"watch": "tsc -watch -p ./",
+		"lint": "eslint src",
+		"test": "npm run compile && mocha \"out/test/**/*.test.js\"",
+		"package": "vsce package --baseContentUrl . --baseImagesUrl ."
+	},
+	"devDependencies": {
+		"@types/jsdom": "^30.0.0",
+		"@types/mocha": "^9.1.1",
+		"@types/node": "^22.10.0",
+		"@types/vscode": "1.71.0",
+		"@vscode/vsce": "^3.2.1",
+		"esbuild": "^0.24.0",
+		"eslint": "^9.15.0",
+		"jsdom": "^30.1.3",
+		"mocha": "^10.8.2",
+		"typescript": "^5.7.2",
+		"typescript-eslint": "^8.16.0"
+	}
+}

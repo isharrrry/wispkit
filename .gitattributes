@@ -1,0 +1,15 @@
+# 归一化文本换行，二进制一律不转换（防止 git 改写 exe/dll/图片字节）
+* text=auto
+
+*.exe binary
+*.dll binary
+*.pdb binary
+*.vsix binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.avif binary
+*.bmp binary
+*.gif binary
+*.ico binary

@@ -1,0 +1,130 @@
+<Grid
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Width="600"
+    Height="380"
+    Background="#FFF6F6F6">
+    <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Border
+        Grid.Row="0"
+        Padding="12,10"
+        Background="#FF2D6CDF">
+        <TextBlock
+            FontSize="16"
+            FontWeight="Bold"
+            Foreground="White"
+            Text="布局示例 · Grid 行列与嵌套容器" />
+    </Border>
+
+    <Grid Grid.Row="1" Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="120" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="1.4*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock
+            Grid.Row="0"
+            Grid.Column="0"
+            Margin="0,0,0,6"
+            FontWeight="SemiBold"
+            Text="左侧固定" />
+        <TextBlock
+            Grid.Row="0"
+            Grid.Column="1"
+            Margin="0,0,0,6"
+            FontWeight="SemiBold"
+            Text="中间自适应" />
+        <TextBlock
+            Grid.Row="0"
+            Grid.Column="2"
+            Margin="0,0,0,6"
+            FontWeight="SemiBold"
+            Text="右侧 1.4 倍" />
+
+        <Border
+            Grid.Row="1"
+            Grid.Column="0"
+            Padding="8"
+            Background="White"
+            BorderBrush="#FFD0D0D0"
+            BorderThickness="1">
+            <StackPanel>
+                <TextBlock Margin="0,0,0,6" Text="项目" />
+                <TextBlock Foreground="#FF666666" Text="项目" />
+                <TextBlock Foreground="#FF666666" Text="项目" />
+                <TextBlock Foreground="#FF666666" Text="项目" />
+            </StackPanel>
+        </Border>
+
+        <Border
+            Grid.Row="1"
+            Grid.Column="1"
+            Margin="10,0"
+            Padding="8"
+            Background="White"
+            BorderBrush="#FFD0D0D0"
+            BorderThickness="1">
+            <TextBlock
+                TextWrapping="Wrap"
+                Text="中间这一栏是星号宽度，会跟着窗口一起伸缩。文字用来检查换行与行距是否正常。" />
+        </Border>
+
+        <Border
+            Grid.Row="1"
+            Grid.Column="2"
+            Padding="8"
+            Background="White"
+            BorderBrush="#FFD0D0D0"
+            BorderThickness="1">
+            <StackPanel>
+                <TextBlock
+                    Margin="0,0,0,8"
+                    FontWeight="SemiBold"
+                    Text="嵌套容器" />
+                <UniformGrid Columns="2" Rows="2">
+                    <Border
+                        Margin="2"
+                        Background="#FFE8EEF9">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Text="A" />
+                    </Border>
+                    <Border
+                        Margin="2"
+                        Background="#FFE8F9EE">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Text="B" />
+                    </Border>
+                    <Border
+                        Margin="2"
+                        Background="#FFF9F2E8">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Text="C" />
+                    </Border>
+                    <Border
+                        Margin="2"
+                        Background="#FFF9E8EE">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Text="D" />
+                    </Border>
+                </UniformGrid>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Grid>

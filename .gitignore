@@ -1,0 +1,19 @@
+node_modules/
+out/
+media/dist/
+*.vsix
+.vscode-test/
+
+# 真机探针与自测产物（约 400+ MB，不入库）
+.selftest/
+
+# XAML 渲染器：bin/Release 是随扩展分发的运行时（xamlProvider.ts 从这里加载），必须入库
+tools/xaml-render/bin/Debug/
+tools/xaml-render/obj/
+tools/xaml-render/publish/
+
+# 编辑器与系统杂项
+.vscode/
+*.bak
+Thumbs.db
+.DS_Store

@@ -1,0 +1,180 @@
+/*
+ * 只读视图：顶部横幅 + 行号栏 + 高亮正文。
+ * 行号与正文放在**同一个滚动容器**里 —— 只读视图没有 textarea 叠层，所以不需要任何
+ * 滚动同步脚本，横向滚动时行号栏靠 position: sticky 留在左边。
+ */
+html,
+body {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	display: flex;
+	flex-direction: column;
+	color: var(--vscode-editor-foreground, var(--vscode-foreground));
+	background: var(--vscode-editor-background);
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: var(--vscode-editor-font-size, 13px);
+}
+
+.wispkit-readonly-banner {
+	flex: 0 0 auto;
+	padding: 5px 12px;
+	border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+	background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+	color: var(--vscode-descriptionForeground, var(--vscode-foreground));
+	font-family: var(--vscode-font-family, sans-serif);
+	font-size: 12px;
+}
+
+.wispkit-readonly-scroll {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+}
+
+.wispkit-readonly-scroll:focus {
+	outline: none;
+}
+
+.wispkit-readonly-code {
+	--wispkit-readonly-line-height: 20px;
+	/* 用固定值而不是 --vscode-editor-font-size：两个规则各自解析同一个变量也可能被中间层改写，
+	   固定值让"行号与正文同字号"成为编译期就能核对的事实。 */
+	--wispkit-readonly-font-size: 13px;
+	display: flex;
+	align-items: flex-start;
+	min-width: min-content;
+}
+
+/*
+ * 对齐契约：下面两条规则里的 font-family / font-size / line-height / padding-top 必须逐项相同，
+ * 否则第一行行号就对不上第一行正文。测试（readonlyHighlight / readonlyPage）直接比对这几个值。
+ */
+.wispkit-readonly-gutter {
+	position: sticky;
+	left: 0;
+	flex: 0 0 auto;
+	padding: 10px 8px 48px 14px;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-editorLineNumber-foreground, var(--vscode-descriptionForeground));
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: var(--wispkit-readonly-font-size);
+	line-height: var(--wispkit-readonly-line-height);
+	text-align: right;
+	/* 行号不能被选中复制（选中正文时会带出一串数字） */
+	user-select: none;
+	pointer-events: none;
+}
+
+.wispkit-readonly-gutter-line {
+	display: block;
+	height: var(--wispkit-readonly-line-height);
+}
+
+.wispkit-readonly-text {
+	margin: 0;
+	padding: 10px 14px 48px 12px;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: var(--wispkit-readonly-font-size);
+	line-height: var(--wispkit-readonly-line-height);
+	white-space: pre;
+	tab-size: 4;
+}
+
+.wispkit-readonly-text:focus {
+	outline: none;
+}
+
+/*
+ * 覆盖 VS Code webview 外壳注入的 `code` 规则
+ * （`out/vs/workbench/contrib/webview/browser/pre/index.html:145-151`）：
+ * 它给 `code` 铺了 `background-color: var(--vscode-textPreformat-background)`（半透明灰）
+ * 与 `color: var(--vscode-textPreformat-foreground)`，而外壳只顺带清了 `pre code` 的 padding、
+ * **没有**清 background。
+ *
+ * 我们的代码区是 `<pre><code>…</code></pre>`，`<code>` 是 inline 且父级 `white-space: pre` 跨多行，
+ * 于是那层背景会沿**每一行的行盒**铺开，看起来就是「每行一条灰带」。
+ * 代码区要的是文字直接落在编辑器背景上，所以在这里清掉它。
+ *
+ * 选择器带 `.wispkit-readonly-text` 前缀是为了压过外壳那条仅元素名的规则；
+ * 语法高亮的 token 颜色不受影响 —— `.wispkit-hl-*` 是 class 选择器，优先级更高。
+ */
+.wispkit-readonly-text code {
+	background: transparent;
+	color: var(--vscode-editor-foreground, var(--vscode-foreground));
+}
+
+/*
+ * 语法高亮配色。一律走 VS Code 主题变量，浅色/深色主题由主题自己保证可读；
+ * 兜底值只在主题没定义该变量时生效。
+ */
+.wispkit-hl-comment {
+	color: var(--vscode-descriptionForeground, #6a9955);
+	font-style: italic;
+}
+
+.wispkit-hl-string {
+	color: var(--vscode-debugTokenExpression-string, var(--vscode-charts-orange, #ce9178));
+}
+
+.wispkit-hl-number {
+	color: var(--vscode-debugTokenExpression-number, var(--vscode-charts-green, #b5cea8));
+}
+
+.wispkit-hl-keyword {
+	color: var(--vscode-charts-blue, #569cd6);
+}
+
+.wispkit-hl-type {
+	color: var(--vscode-symbolIcon-classForeground, var(--vscode-charts-green, #4ec9b0));
+}
+
+/* JSON / YAML / INI 的键名 */
+.wispkit-hl-key {
+	color: var(--vscode-debugTokenExpression-name, var(--vscode-charts-blue, #9cdcfe));
+}
+
+.wispkit-hl-tag {
+	color: var(--vscode-symbolIcon-classForeground, var(--vscode-charts-blue, #569cd6));
+}
+
+.wispkit-hl-attr {
+	color: var(--vscode-debugTokenExpression-name, var(--vscode-charts-blue, #9cdcfe));
+}
+
+.wispkit-hl-added {
+	color: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green, #81b88b));
+}
+
+.wispkit-hl-removed {
+	color: var(--vscode-gitDecoration-deletedResourceForeground, var(--vscode-charts-red, #c74e39));
+}
+
+/* 解锁按钮固定在右下角：行号栏在最左侧，不会挡住它。 */
+.wispkit-readonly-unlock {
+	position: fixed;
+	right: 16px;
+	bottom: 16px;
+	z-index: 2;
+	padding: 5px 12px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 4px;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font-family: var(--vscode-font-family, sans-serif);
+	font-size: 12px;
+	cursor: pointer;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36));
+}
+
+.wispkit-readonly-unlock:hover {
+	background: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+}
+
+.wispkit-readonly-unlock:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
