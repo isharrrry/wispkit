@@ -22,6 +22,7 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
 | Configuración | [English](configuration.md) · [中文](configuration.zh-CN.md) · [Español](configuration.es.md) | Referencia a nivel de campo de los trece ajustes, `.WispkitView/Wispkit.json`, marcadores de herramientas y modos de ejecución |
 | Compilación y verificación | [English](build-and-verify.md) · [中文](build-and-verify.zh-CN.md) · [Español](build-and-verify.es.md) | Entorno, los cuatro comandos npm, la estructura de pruebas (477 casos), sondas en máquina real, empaquetado e instalación |
 | Limitaciones conocidas | [English](limitations.md) · [中文](limitations.zh-CN.md) · [Español](limitations.es.md) | Lo que la extensión no puede hacer, por qué existe cada límite y lo que nunca se ha verificado |
+| Notas de desarrollo | [中文](development-notes.zh-CN.md) (solo chino) | Cómo se construyó la extensión paso a paso — primero la prueba de humo, luego la lógica pura — y cada tropiezo real, con síntoma, causa raíz y solución |
 
 ## Por dónde empezar
 

@@ -22,6 +22,7 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
 | Configuration | [English](configuration.md) · [中文](configuration.zh-CN.md) · [Español](configuration.es.md) | Field-level reference for all thirteen settings, `.WispkitView/Wispkit.json`, tool placeholders and execution modes |
 | Build and verify | [English](build-and-verify.md) · [中文](build-and-verify.zh-CN.md) · [Español](build-and-verify.es.md) | Environment, the four npm commands, the test layout (477 cases), real-machine probes, packaging and installation |
 | Known limitations | [English](limitations.md) · [中文](limitations.zh-CN.md) · [Español](limitations.es.md) | What the extension cannot do, why each limit exists, and what has never been verified |
+| Development notes | [中文](development-notes.zh-CN.md) (Chinese only) | How the extension was built step by step — smoke first, pure logic next — and every pitfall that was actually hit, with symptom, root cause and fix |
 
 ## Where to start
 

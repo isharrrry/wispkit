@@ -62,8 +62,9 @@ dotnet build -c Release
 | Referencia a nivel de campo de cada ajuste, `Wispkit.json`, marcadores de herramientas | [Configuración](docs/configuration.es.md) |
 | Compilación, pruebas, sondas en máquina real, empaquetado | [Compilación y verificación](docs/build-and-verify.es.md) |
 | Lo que no puede hacer y lo que nunca se verificó | [Limitaciones conocidas](docs/limitations.es.md) |
+| Cómo se construyó paso a paso y cada tropiezo real | [Notas de desarrollo](docs/development-notes.zh-CN.md) (中文) |
 
-**Regla de documentación**: cada tema en `docs/` existe en inglés, chino y español — **cualquier cambio actualiza los tres en el mismo cambio** (las variantes son traducciones fieles, no resúmenes). Lo no verificado se etiqueta explícitamente en [Limitaciones conocidas](docs/limitations.es.md) en lugar de presentarse como garantía.
+**Regla de documentación**: cada tema en `docs/` existe en inglés, chino y español — **cualquier cambio actualiza los tres en el mismo cambio** (las variantes son traducciones fieles, no resúmenes). La única excepción es `docs/development-notes.zh-CN.md`, un registro de ingeniería interno que se mantiene solo en chino. Lo no verificado se etiqueta explícitamente en [Limitaciones conocidas](docs/limitations.es.md) en lugar de presentarse como garantía.
 
 ## Compilación y entorno medido
 
@@ -74,8 +75,32 @@ dotnet build -c Release
 | esbuild | 0.24 (4 bundles de webview) |
 | Pruebas | mocha + jsdom, **477 pasando**, 20 archivos de prueba |
 | Lint | eslint 9, **0 errores** |
-| VSIX | 91 entradas / ~385 KB (incluye docs y los tres README) |
+| VSIX | 94 entradas / ~1.1 MB (incluye docs, los tres README y las capturas) |
 | VS Code medido | **1.137.0** (Windows) |
+
+## Capturas de pantalla
+
+Capturadas de un Extension Development Host real de VS Code 1.137.0, con la carpeta `demo/` incluida en este repositorio.
+
+**Vista Markdown** — render de bloques drawio, tabla de contenidos, botón de edición y la insignia «Wispkit Markdown»:
+
+![Vista Markdown de Wispkit: bloques drawio, tabla de contenidos y botón de edición](docs/images/wispkit-markdown.png)
+
+**Vista XAML** — código resaltado junto al resultado renderizado; la línea de estado indica tipo raíz, tamaño y modo de alojamiento:
+
+![Vista XAML de Wispkit: código resaltado junto al render](docs/images/wispkit-xaml.png)
+
+**Vista de imagen** — zoom con la rueda por defecto (sin Ctrl), arrastre con el botón derecho para desplazar, regla para comprobar la escala:
+
+![Vista de imagen de Wispkit: zoom con rueda y arrastre](docs/images/wispkit-image.png)
+
+**Vista de texto de solo lectura** — solo se carga la cabecera del archivo (64 KB / 800 líneas por defecto); «Desbloquear edición» vuelve al editor nativo:
+
+![Vista de texto de solo lectura: carga parcial con control de desbloqueo](docs/images/wispkit-readonly.png)
+
+**Explorador de subárbol** — varias columnas (nombre / tamaño / tipo / modificación / creación), anchos arrastrables y acciones de archivo para la selección a la derecha:
+
+![Explorador de subárbol: vista multicolumna con grupos de acciones](docs/images/wispkit-subtree.png)
 
 ## Comportamiento medido
 

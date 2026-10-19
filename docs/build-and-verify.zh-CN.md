@@ -121,7 +121,7 @@ npm run package
 | `demo/**` | 演示数据（约 5 MB）不进包 |
 | `panzoom.bak`、`contrib.bak` | 历史备份 |
 
-当前产物：**88 条目 / 约 378 KB**（比只有代码时多 20 个条目：`docs/` 18 篇 + `README.zh-CN.md` + `README.es.md`；文档增加会同步变）。
+当前产物：**94 条目 / 约 1.1 MB**（比只有代码时多 26 个条目：`docs/` 19 篇 + 5 张界面截图 + `README.zh-CN.md` + `README.es.md`；文档增加会同步变）。
 
 安装到本机：
 

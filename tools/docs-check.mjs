@@ -36,13 +36,21 @@ for (const f of docFiles) {
 }
 
 // 2. three-language completeness
-const topics = new Set(docFiles.filter((f) => !f.includes('.zh-CN.') && !f.includes('.es.')).map((f) => f.replace(/\.md$/, '')));
+// Internal engineering notes are Chinese-only by design and therefore exempt.
+const CHINESE_ONLY = new Set(['development-notes']);
+const topics = new Set(
+  docFiles
+    .filter((f) => !f.includes('.zh-CN.') && !f.includes('.es.'))
+    .map((f) => f.replace(/\.md$/, ''))
+    .filter((t) => !CHINESE_ONLY.has(t)),
+);
 for (const topic of topics) {
   for (const variant of ['.md', '.zh-CN.md', '.es.md']) {
     if (!existsSync(join(docsDir, topic + variant))) problems.push(`docs/${topic}${variant}: missing language variant`);
   }
 }
 for (const f of docFiles) {
+  if ([...CHINESE_ONLY].some((t) => f === `${t}.zh-CN.md`)) continue;
   const base = f.replace(/\.(zh-CN|es)\.md$/, '.md');
   if (base !== f && !existsSync(join(docsDir, base))) problems.push(`docs/${f}: counterpart ${base} does not exist`);
 }

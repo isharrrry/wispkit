@@ -22,6 +22,7 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
 | 配置参考 | [English](configuration.md) · [中文](configuration.zh-CN.md) · [Español](configuration.es.md) | 13 个配置项的字段级参考、`.WispkitView/Wispkit.json`、工具占位符与四种执行模式 |
 | 构建与验证 | [English](build-and-verify.md) · [中文](build-and-verify.zh-CN.md) · [Español](build-and-verify.es.md) | 环境要求、四条 npm 命令、测试构成（477 用例）、真机探针、打包与安装 |
 | 已知限制 | [English](limitations.md) · [中文](limitations.zh-CN.md) · [Español](limitations.es.md) | 扩展做不到的事、每条限制的成因，以及从未验证过的项 |
+| 开发过程与踩坑 | [中文](development-notes.zh-CN.md)（仅中文） | 先冒烟再写代码的开发节奏，以及八类真实踩坑的**现象 / 根因 / 做法**——webview 与 CSP、VS Code API 边界、XAML 渲染、打包分发、探针测试、Windows 工具链、并行协作 |
 
 ## 从哪开始
 

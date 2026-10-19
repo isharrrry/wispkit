@@ -62,8 +62,9 @@ dotnet build -c Release
 | 每个配置项的字段级参考、`Wispkit.json`、工具占位符 | [配置参考](docs/configuration.zh-CN.md) |
 | 构建、测试、真机探针、打包安装 | [构建与验证](docs/build-and-verify.zh-CN.md) |
 | 做不到的事、没验证过的事 | [已知限制与未验证项](docs/limitations.zh-CN.md) |
+| 一步步是怎么做出来的、每个真实踩过的坑 | [开发过程与踩坑](docs/development-notes.zh-CN.md) |
 
-**文档纪律**：`docs/` 下每篇主题都有英/中/西三个版本，**任何修改必须在同一次改动里同步更新三份**（语言变体是忠实翻译，不是摘要）；未验证项一律在[已知限制](docs/limitations.zh-CN.md)显式标注，不当作设计保证陈述。
+**文档纪律**：`docs/` 下每篇主题都有英/中/西三个版本，**任何修改必须在同一次改动里同步更新三份**（语言变体是忠实翻译，不是摘要）。唯一例外是 `docs/development-notes.zh-CN.md`——内部工程记录，仅中文。未验证项一律在[已知限制](docs/limitations.zh-CN.md)显式标注，不当作设计保证陈述。
 
 ## 构建与实测环境
 
@@ -74,8 +75,32 @@ dotnet build -c Release
 | esbuild | 0.24（4 个 webview bundle） |
 | 测试 | mocha + jsdom，**477 passing**，20 个测试文件 |
 | lint | eslint 9，**0 error** |
-| VSIX | 91 条目 / 约 385 KB（含 docs 与三语 README） |
+| VSIX | 94 条目 / 约 1.1 MB（含 docs、三语 README 与界面截图） |
 | 实测 VS Code | **1.137.0**（Windows） |
+
+## 界面截图
+
+截图取自真实 VS Code 1.137.0 的扩展开发宿主，素材是仓库自带的 `demo/`。
+
+**Markdown 视图** —— drawio 图块渲染、目录导航、编辑开关与「Wispkit Markdown」徽标：
+
+![Wispkit Markdown 视图：drawio 图块渲染、目录导航与编辑开关](docs/images/wispkit-markdown.png)
+
+**XAML 视图** —— 源码高亮与渲染结果并排，状态行给出根类型、尺寸与承载模式：
+
+![Wispkit XAML 视图：源码高亮与渲染并排](docs/images/wispkit-xaml.png)
+
+**图片视图** —— 默认滚轮缩放（无需按 Ctrl）、右键拖动平移，标尺用于核对缩放比例：
+
+![Wispkit 图片视图：滚轮缩放与拖动平移](docs/images/wispkit-image.png)
+
+**只读文本视图** —— 只加载文件头（默认 64 KB / 800 行），右下角「解锁编辑」切回原生编辑器：
+
+![Wispkit 只读文本视图：只加载文件头并可解锁编辑](docs/images/wispkit-readonly.png)
+
+**子树浏览** —— 多列（名称 / 大小 / 类型 / 修改时间 / 创建时间）、列宽可拖，右侧是选中条目的文件操作分组：
+
+![Wispkit 子树浏览：多列视图与文件操作分组](docs/images/wispkit-subtree.png)
 
 ## 实测过的行为
 

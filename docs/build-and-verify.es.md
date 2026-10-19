@@ -121,7 +121,7 @@ npm run package
 | `demo/**` | los datos de demostración (unos 5 MB) no entran en el paquete |
 | `panzoom.bak`, `contrib.bak` | copias de seguridad históricas |
 
-Salida actual: **88 entradas / unos 378 KB** (20 entradas más que solo código: 18 archivos en `docs/` más `README.zh-CN.md` y `README.es.md`; y crecerá a medida que se añadan documentos).
+Salida actual: **94 entradas / unos 1.1 MB** (26 entradas más que solo código: 19 archivos en `docs/`, 5 capturas, más `README.zh-CN.md` y `README.es.md`; y crecerá a medida que se añadan documentos).
 
 Instalación local:
 

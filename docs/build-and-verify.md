@@ -121,7 +121,7 @@ npm run package
 | `demo/**` | demo data (about 5 MB) does not go into the package |
 | `panzoom.bak`, `contrib.bak` | historical backups |
 
-Current output: **88 entries / about 378 KB** (20 more entries than code only: 18 files under `docs/` plus `README.zh-CN.md` and `README.es.md`; the count grows as documentation is added).
+Current output: **94 entries / about 1.1 MB** (26 more entries than code only: 19 files under `docs/`, 5 screenshots, plus `README.zh-CN.md` and `README.es.md`; the count grows as documentation is added).
 
 Installing locally:
 

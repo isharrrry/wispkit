@@ -5,6 +5,14 @@
 	"version": "0.1.0",
 	"publisher": "narnat",
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://gitee.com/the50w/wispkit.git"
+	},
+	"homepage": "https://gitee.com/the50w/wispkit#readme",
+	"bugs": {
+		"url": "https://gitee.com/the50w/wispkit/issues"
+	},
 	"engines": {
 		"vscode": "^1.71.0"
 	},
@@ -357,7 +365,7 @@
 		"watch": "tsc -watch -p ./",
 		"lint": "eslint src",
 		"test": "npm run compile && mocha \"out/test/**/*.test.js\"",
-		"package": "vsce package --baseContentUrl . --baseImagesUrl ."
+		"package": "vsce package --baseContentUrl https://gitee.com/the50w/wispkit/blob/master --baseImagesUrl https://gitee.com/the50w/wispkit/raw/master"
 	},
 	"devDependencies": {
 		"@types/jsdom": "^30.0.0",

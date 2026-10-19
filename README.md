@@ -62,8 +62,9 @@ dotnet build -c Release
 | Field-level reference for every setting, `Wispkit.json`, tool placeholders | [Configuration](docs/configuration.md) |
 | Build, tests, real-machine probes, packaging | [Build and verify](docs/build-and-verify.md) |
 | What it cannot do, what was never verified | [Known limitations](docs/limitations.md) |
+| How it was built step by step, and every pitfall hit | [Development notes](docs/development-notes.zh-CN.md) (中文) |
 
-**Documentation rule**: every topic under `docs/` exists in English, Chinese and Spanish — **any edit updates all three in the same change** (variants are faithful translations, not summaries). Unverified items are labelled explicitly in [Known limitations](docs/limitations.md) instead of being presented as guarantees.
+**Documentation rule**: every topic under `docs/` exists in English, Chinese and Spanish — **any edit updates all three in the same change** (variants are faithful translations, not summaries). The single exception is `docs/development-notes.zh-CN.md`, an internal engineering log kept in Chinese only. Unverified items are labelled explicitly in [Known limitations](docs/limitations.md) instead of being presented as guarantees.
 
 ## Build and measured environment
 
@@ -74,8 +75,32 @@ dotnet build -c Release
 | esbuild | 0.24 (4 webview bundles) |
 | Tests | mocha + jsdom, **477 passing**, 20 test files |
 | Lint | eslint 9, **0 errors** |
-| VSIX | 91 entries / ~385 KB (docs and the three READMEs included) |
+| VSIX | 94 entries / ~1.1 MB (docs, the three READMEs and the screenshots included) |
 | Measured VS Code | **1.137.0** (Windows) |
+
+## Screenshots
+
+Captured from a real VS Code 1.137.0 Extension Development Host, using the `demo/` folder shipped in this repository.
+
+**Markdown view** — drawio block rendering, table of contents, edit toggle and the "Wispkit Markdown" badge:
+
+![Wispkit Markdown view: drawio block rendering, table of contents and edit toggle](docs/images/wispkit-markdown.png)
+
+**XAML view** — highlighted source next to the rendered result; the status line reports root type, size and hosting mode:
+
+![Wispkit XAML view: highlighted source beside the render](docs/images/wispkit-xaml.png)
+
+**Image view** — wheel zoom by default (no Ctrl needed), right-drag to pan, ruler to check the zoom ratio:
+
+![Wispkit image view: wheel zoom and drag to pan](docs/images/wispkit-image.png)
+
+**Read-only text view** — only the head of the file is loaded (64 KB / 800 lines by default); "Unlock editing" switches back to the native editor:
+
+![Wispkit read-only text view: header-only load with an unlock control](docs/images/wispkit-readonly.png)
+
+**Subtree browser** — multiple columns (name / size / type / modified / created), draggable widths, and per-selection file actions on the right:
+
+![Wispkit subtree browser: multi-column view with file action groups](docs/images/wispkit-subtree.png)
 
 ## Measured behaviour
 
