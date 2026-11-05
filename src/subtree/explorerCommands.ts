@@ -66,7 +66,7 @@ export interface ExplorerCommand {
 export interface ExtensionContribution {
 	readonly id: string;
 	readonly packageJson: unknown;
-	/** 该扩展 `package.nls.json` 的内容（英文键值对），用于解析 `%key%` 占位符标题。 */
+	/** 该扩展 nls 文件的内容（当前 locale，英文主版兜底），用于解析 `%key%` 占位符标题。 */
 	readonly nls?: Readonly<Record<string, string>>;
 }
 
@@ -182,6 +182,17 @@ export function humanizeCommandId(id: string): string {
 		.split(' ')
 		.map(word => word.charAt(0).toUpperCase() + word.slice(1))
 		.join(' ');
+}
+
+/**
+ * 扩展 nls 文件的读取顺序：先当前 UI 语言，再回退英文主版。
+ * VS Code 的扩展清单在 `Extension.packageJSON` 里保留 `%key%` 原文，所以这里自己按 locale 解析。
+ */
+export function nlsFileCandidates(language: string): readonly string[] {
+	const normalized = language.trim().toLowerCase();
+	return normalized && normalized !== 'en'
+		? [`package.nls.${normalized}.json`, 'package.nls.json']
+		: ['package.nls.json'];
 }
 
 /**

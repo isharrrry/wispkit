@@ -1,4 +1,5 @@
 .vscode/**
+.github/**
 .agent/**
 .gitignore
 eslint.config.mjs
@@ -21,6 +22,8 @@ tools/xaml-render/*.md
 tools/xaml-render/Program.cs
 tools/xaml-render/XamlRender.csproj
 .selftest/**
+.WispkitView/**
+claude-result.json
 demo/**
 panzoom.bak
 contrib.bak

@@ -7,6 +7,10 @@ media/dist/
 # 真机探针与自测产物（约 400+ MB，不入库）
 .selftest/
 
+# 仓库根目录的扩展运行时状态与 AI 会话产物（demo 内的 .WispkitView 示例是素材，单独保留）
+/.WispkitView/
+/claude-result.json
+
 # XAML 渲染器：bin/Release 是随扩展分发的运行时（xamlProvider.ts 从这里加载），必须入库
 tools/xaml-render/bin/Debug/
 tools/xaml-render/obj/

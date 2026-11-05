@@ -651,7 +651,7 @@ async function demoChecks(fixtureDir) {
 
 /** 子树浏览 + .WispkitView 展示：命令是否真的开出面板、重复点击是否复用。 */
 async function subtreeChecks(fixtureDir) {
-	const dir = path.resolve(fixtureDir, '..', '..', 'demo', 'R7-subtree', '演示工程');
+	const dir = path.resolve(fixtureDir, '..', '..', 'demo', 'R11-subtree', '演示工程');
 	step('subtree.demoDirExists', fs.existsSync(dir));
 	if (!fs.existsSync(dir)) {
 		return;

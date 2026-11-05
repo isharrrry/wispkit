@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { execFile, spawn } from 'node:child_process';
 import { columnDefinition, formatCell, resolveColumns, type ColumnId } from './subtree/columns';
 import { formatCommandLine, parseTools, resolveToolInvocation, type SubtreeToolConfig } from './subtree/config';
-import { collectExplorerCommands, filterAvailableCommands, hasExplorerContextMenu, type ExplorerCommand, type ExtensionContribution } from './subtree/explorerCommands';
+import { collectExplorerCommands, filterAvailableCommands, hasExplorerContextMenu, nlsFileCandidates, type ExplorerCommand, type ExtensionContribution } from './subtree/explorerCommands';
 import {
 	deleteConfirmation,
 	describeClipboard,
@@ -14,6 +14,22 @@ import {
 	validateEntryName,
 	type ClipboardState,
 } from './subtree/fileActions';
+import {
+	decodeDataUrl,
+	isMoveDropRequested,
+	normalizeMime,
+	parsePlainPathList,
+	parseUriList,
+	pickPrimaryString,
+	renderContentForType,
+	shortName,
+	stemOfFileName,
+	storageTypesFor,
+	suggestedFileName,
+	type DroppedFile,
+	type DroppedString,
+	type StorageType,
+} from './subtree/drop';
 import { renderSubtreePage, type SubtreeViewConfig } from './subtree/page';
 import { findIconThemeFile, loadIconThemeDefinition, toWebviewIconTheme } from './subtree/iconThemeHost';
 import type { IconThemeDefinition } from './subtree/iconTheme';
@@ -31,6 +47,8 @@ interface SubtreeRow {
 	readonly name: string;
 	readonly path: string;
 	readonly isDirectory: boolean;
+	/** 父目录：拖放落到文件行上时，目标目录取它的父目录。 */
+	readonly parentPath: string;
 	/** 按当前列定义格式化好的文本，前端直接摆放（列定义只有一份实现）。 */
 	readonly cells: Readonly<Record<string, string>>;
 }
@@ -47,25 +65,27 @@ function isInside(rootPath: string, candidate: string): boolean {
 	return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
-/** 读扩展的 `package.nls.json`：命令标题是 `%key%` 占位符时靠它还原成人类可读名称。 */
+/** 读扩展的 nls 文件：命令标题是 `%key%` 占位符时靠它还原成人类可读名称（当前语言优先，英文主版兜底）。 */
 async function readExtensionNls(extensionUri: vscode.Uri): Promise<Record<string, string> | undefined> {
-	try {
-		const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(extensionUri, 'package.nls.json'));
-		const parsed: unknown = JSON.parse(new TextDecoder('utf-8').decode(bytes));
-		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-			return undefined;
-		}
-		const out: Record<string, string> = {};
-		for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-			if (typeof value === 'string') {
-				out[key] = value;
+	for (const file of nlsFileCandidates(vscode.env.language)) {
+		try {
+			const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(extensionUri, file));
+			const parsed: unknown = JSON.parse(new TextDecoder('utf-8').decode(bytes));
+			if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+				continue;
 			}
+			const out: Record<string, string> = {};
+			for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+				if (typeof value === 'string') {
+					out[key] = value;
+				}
+			}
+			return out;
+		} catch {
+			// 该语言没有 nls 文件就继续尝试下一个候选；全部缺失时交给 resolveCommandLabel 走派生名
 		}
-		return out;
-	} catch {
-		// 大多数扩展没有 nls 文件：交给 resolveCommandLabel 走派生名，绝不用 command id 当标题
-		return undefined;
 	}
+	return undefined;
 }
 
 /** 内置白名单里不存在的命令直接从界面上消失 —— 只筛内置，扩展贡献的留到执行时校验。 */
@@ -98,7 +118,13 @@ function buildRows(
 		for (const column of columns) {
 			cells[column] = formatCell(column, entry, { owner });
 		}
-		return { name: entry.name, path: entry.path, isDirectory: entry.isDirectory, cells };
+		return {
+			name: entry.name,
+			path: entry.path,
+			isDirectory: entry.isDirectory,
+			parentPath: path.dirname(entry.path),
+			cells,
+		};
 	});
 }
 
@@ -294,6 +320,9 @@ export class SubtreePanel {
 				return;
 			case 'wispkit.subtree.open':
 				await this.openEntry(String(message.path ?? ''));
+				return;
+			case 'wispkit.subtree.drop':
+				await this.handleDrop(message);
 				return;
 			default:
 				return;
@@ -718,6 +747,411 @@ export class SubtreePanel {
 		}
 	}
 
+	/**
+	 * 拖入资源。三类来源走三条路：
+	 * 1. `text/uri-list` / `text/plain` 里能解析出真实路径 → 复制 / 移动；
+	 * 2. OS 直接拖入的 File（只有内容、没有源路径）→ 询问后复制内容；
+	 * 3. 文本 / HTML / 图片等字符串资源 → 选择存储类型 + 填写文件名后另存。
+	 */
+	private async handleDrop(message: Record<string, unknown>): Promise<void> {
+		const targetDir = String(message.targetDir ?? '');
+		if (!targetDir || !isInside(this.folderUri.fsPath, targetDir)) {
+			this.status('拖放目标不在当前子树范围内。', 'error');
+			return;
+		}
+		try {
+			const stat = await vscode.workspace.fs.stat(vscode.Uri.file(targetDir));
+			if ((stat.type & vscode.FileType.Directory) === 0) {
+				this.status('拖放目标不是文件夹。', 'error');
+				return;
+			}
+		} catch (error) {
+			this.status(`拖放目标不可用：${error instanceof Error ? error.message : String(error)}`, 'error');
+			return;
+		}
+
+		const files = readDroppedFiles(message.files);
+		const strings = readDroppedStrings(message.strings);
+		if (files.length === 0 && strings.length === 0) {
+			this.status('拖入的内容为空或无法读取。', 'error');
+			return;
+		}
+
+		try {
+			const sourcePaths = await this.resolveDroppedPaths(strings);
+			if (sourcePaths.length > 0) {
+				await this.copyOrMoveDroppedPaths(sourcePaths, targetDir, isMoveDropRequested(message));
+				return;
+			}
+			// 浏览器 / 其他应用拖来的图片等常同时带 File 与 HTML/链接：
+			// 这属于“其他类型资源”，应该问存储类型和名称，而不是当普通文件复制。
+			const resourceHint = strings.some(item => {
+				const mime = normalizeMime(item.mime);
+				return mime === 'text/html'
+					|| (mime === 'text/uri-list' && parseUriList(item.text).some(uri => /^https?:/i.test(uri)));
+			});
+			if (files.length > 0 && resourceHint) {
+				const file = files.find(item => item.bytes && item.bytes.byteLength > 0);
+				if (file) {
+					await this.saveDroppedResource(file.mime, undefined, file.bytes, file.name, targetDir);
+					return;
+				}
+			}
+			if (files.length > 0) {
+				await this.importDroppedFiles(files, targetDir);
+				return;
+			}
+			const primary = pickPrimaryString(strings);
+			if (!primary) {
+				this.status('拖入的内容里没有可保存的资源。', 'error');
+				return;
+			}
+			await this.saveDroppedString(primary, targetDir);
+		} catch (error) {
+			const detail = error instanceof Error ? error.message : String(error);
+			this.status(`处理拖入内容失败：${detail}`, 'error');
+			void vscode.window.showWarningMessage(`Wispkit：处理拖入内容失败 —— ${detail}`);
+		}
+	}
+
+	/** 从 uri-list / 纯文本路径里找出**真实存在**的源路径。 */
+	private async resolveDroppedPaths(strings: readonly DroppedString[]): Promise<string[]> {
+		const candidates: string[] = [];
+		const uriList = strings
+			.filter(item => normalizeMime(item.mime) === 'text/uri-list')
+			.map(item => item.text)
+			.join('\r\n');
+		for (const entry of parseUriList(uriList)) {
+			try {
+				const uri = vscode.Uri.parse(entry);
+				if (uri.scheme === 'file') {
+					candidates.push(uri.fsPath);
+				}
+			} catch {
+				// 非法 URI 忽略
+			}
+		}
+
+		if (candidates.length === 0) {
+			const plain = strings
+				.filter(item => normalizeMime(item.mime) === 'text/plain')
+				.map(item => item.text)
+				.join('\r\n');
+			candidates.push(...parsePlainPathList(plain));
+		}
+
+		const out: string[] = [];
+		const seen = new Set<string>();
+		for (const candidate of candidates) {
+			const key = candidate.toLowerCase();
+			if (!candidate || seen.has(key)) {
+				continue;
+			}
+			seen.add(key);
+			try {
+				await vscode.workspace.fs.stat(vscode.Uri.file(candidate));
+				out.push(candidate);
+			} catch {
+				// 不存在的条目当作普通文本资源，不在这里报错
+			}
+		}
+		return out;
+	}
+
+	/**
+	 * 变更路径广播给所有打开的面板：左右子树互拖时，drop 由目标面板处理，
+	 * 但被移走的条目在**源面板**里 —— 它只缓存自己的层级，必须让它刷新，
+	 * 否则源树会留下一条点了就报错的过期行。各面板只处理自己根目录内的路径。
+	 */
+	private static refreshAcrossPanels(paths: readonly string[], self: SubtreePanel): Promise<void> {
+		for (const panel of SubtreePanel.panels.values()) {
+			if (panel === self) {
+				continue;
+			}
+			const inside = paths.filter(item => isInside(panel.folderUri.fsPath, item));
+			if (inside.length > 0) {
+				void panel.refreshLevelsFor(inside);
+			}
+		}
+		return self.refreshLevelsFor(paths);
+	}
+
+	/**
+	 * 有源路径：询问复制 / 移动，然后按 workspace.fs 执行。
+	 *
+	 * `moveByModifier` 为 true 表示用户拖拽时按着 Ctrl/Cmd（且拖拽源自 Wispkit 子树）——
+	 * 直接按移动执行，不再弹「复制还是移动」。同名冲突仍然要问，避免覆盖丢数据。
+	 */
+	private async copyOrMoveDroppedPaths(
+		sources: readonly string[],
+		targetDir: string,
+		moveByModifier = false,
+	): Promise<void> {
+		const scope = sources.length > 1 ? ` ${sources.length} 个条目` : `「${shortName(path.basename(sources[0]), 30)}」`;
+		let operation: 'copy' | 'move';
+		if (moveByModifier) {
+			operation = 'move';
+		} else {
+			const choice = await vscode.window.showQuickPick(
+				[
+					{ label: '$(files) 复制', description: '保留源文件，把副本放到目标文件夹', operation: 'copy' as const },
+					{ label: '$(move) 移动', description: '把源文件移到目标文件夹（源位置删除）', operation: 'move' as const },
+				],
+				{ placeHolder: `把${scope}放到 ${shortName(path.basename(targetDir) || targetDir, 30)}：复制还是移动？`, ignoreFocusOut: true },
+			);
+			if (!choice) {
+				this.status('已取消拖入。');
+				return;
+			}
+			operation = choice.operation;
+		}
+
+		const existing = new Set((await vscode.workspace.fs.readDirectory(vscode.Uri.file(targetDir))).map(([name]) => name));
+		const existingLower = new Set([...existing].map(name => name.toLowerCase()));
+		const conflicts = sources.filter(source => existingLower.has(path.basename(source).toLowerCase()));
+		let mode: 'overwrite' | 'rename' | 'cancel' = 'rename';
+		if (conflicts.length > 0) {
+			const conflictChoice = await vscode.window.showQuickPick(
+				[
+					{ label: '$(warning) 覆盖', description: `目标文件夹里已有同名条目（${conflicts.map(name => path.basename(name)).join('、')}）`, value: 'overwrite' as const },
+					{ label: '$(diff-renamed) 自动重命名', description: '用「副本」后缀避开冲突', value: 'rename' as const },
+					{ label: '$(close) 取消', value: 'cancel' as const },
+				],
+				{ placeHolder: `目标文件夹里有 ${conflicts.length} 个同名条目，怎么处理？`, ignoreFocusOut: true },
+			);
+			if (!conflictChoice || conflictChoice.value === 'cancel') {
+				this.status('已取消拖入。');
+				return;
+			}
+			mode = conflictChoice.value;
+		}
+
+		const names = mode === 'rename'
+			? pasteTargetNames(sources, existing, path.basename)
+			: sources.map(source => path.basename(source));
+		const failures: string[] = [];
+		const touched: string[] = [];
+
+		for (let index = 0; index < sources.length; index += 1) {
+			const source = sources[index];
+			const destination = vscode.Uri.joinPath(vscode.Uri.file(targetDir), names[index]);
+			if (path.resolve(source) === path.resolve(destination.fsPath)) {
+				// 源和目标同一个条目：复制/移动都没有可做的事（“覆盖自己”也算成功）
+				continue;
+			}
+
+			try {
+				const sourceStat = await vscode.workspace.fs.stat(vscode.Uri.file(source));
+				const isDirectory = (sourceStat.type & vscode.FileType.Directory) !== 0;
+				if (isDirectory && isInside(source, targetDir)) {
+					failures.push(`${path.basename(source)}：不能把文件夹放到它自己里面`);
+					continue;
+				}
+
+				if (operation === 'copy') {
+					await vscode.workspace.fs.copy(vscode.Uri.file(source), destination, { overwrite: mode === 'overwrite' });
+				} else {
+					await this.movePath(source, destination.fsPath, mode === 'overwrite');
+				}
+				touched.push(source, destination.fsPath);
+			} catch (error) {
+				failures.push(`${path.basename(source)}：${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
+
+		// 先刷新再报结果：前端收到 level 消息会清空状态栏，反过来会把“已移动”吃掉
+		await SubtreePanel.refreshAcrossPanels([...touched, targetDir], this);
+		if (failures.length > 0) {
+			this.status(`拖入失败：${failures[0]}`, 'error');
+			void vscode.window.showWarningMessage(`Wispkit：拖入失败 —— ${failures[0]}`);
+		} else {
+			this.status(`已${operation === 'copy' ? '复制' : '移动'} ${sources.length} 个条目到 ${path.basename(targetDir) || targetDir}`);
+		}
+	}
+
+	/** 移动：优先 rename（同盘原子）；跨盘时退回「复制 + 删除」。 */
+	private async movePath(source: string, destination: string, overwrite: boolean): Promise<void> {
+		try {
+			await vscode.workspace.fs.rename(vscode.Uri.file(source), vscode.Uri.file(destination), { overwrite });
+			return;
+		} catch {
+			// 跨卷 / 目标被占用时 rename 会失败，走复制再删
+		}
+		await vscode.workspace.fs.copy(vscode.Uri.file(source), vscode.Uri.file(destination), { overwrite });
+		await vscode.workspace.fs.delete(vscode.Uri.file(source), { recursive: true, useTrash: true });
+	}
+
+	/** OS 直接拖入的 File：内容在手上，但系统不提供源路径，只能复制。 */
+	private async importDroppedFiles(files: readonly DroppedFile[], targetDir: string): Promise<void> {
+		const usable = files.filter(file => file.bytes && file.bytes.byteLength > 0);
+		const broken = files.find(file => file.error || !file.bytes);
+		if (usable.length === 0) {
+			this.status(broken?.error || '拖入的文件没有可读取的内容。', 'error');
+			return;
+		}
+
+		const choice = await vscode.window.showQuickPick(
+			[
+				{ label: '$(files) 复制', description: '把文件内容写入目标文件夹', operation: 'copy' as const },
+				{ label: '$(move) 移动', description: '系统拖拽没有提供源路径，无法移动；请先在资源管理器里移动', operation: 'move' as const },
+			],
+			{ placeHolder: `把 ${usable.length} 个文件放到 ${shortName(path.basename(targetDir) || targetDir, 30)}：复制还是移动？`, ignoreFocusOut: true },
+		);
+		if (!choice) {
+			this.status('已取消拖入。');
+			return;
+		}
+		if (choice.operation === 'move') {
+			this.status('系统拖拽的文件没有源路径，无法移动；请改用复制。', 'error');
+			void vscode.window.showInformationMessage('Wispkit：从系统拖入的文件不带源路径（VS Code webview 限制），只能复制；如需移动请在资源管理器里操作。');
+			return;
+		}
+
+		const existing = new Set((await vscode.workspace.fs.readDirectory(vscode.Uri.file(targetDir))).map(([name]) => name));
+		const desiredNames = usable.map((file, index) => {
+			const name = path.basename(String(file.name ?? '').replace(/[\\/]+/g, '/'));
+			return name && !validateEntryName(name) ? name : `拖入文件-${index + 1}`;
+		});
+		const existingLower = new Set([...existing].map(name => name.toLowerCase()));
+		const conflicts = desiredNames.filter(name => existingLower.has(name.toLowerCase()));
+		let mode: 'overwrite' | 'rename' | 'cancel' = 'rename';
+		if (conflicts.length > 0) {
+			const conflictChoice = await vscode.window.showQuickPick(
+				[
+					{ label: '$(warning) 覆盖', description: `已有同名文件：${conflicts.join('、')}`, value: 'overwrite' as const },
+					{ label: '$(diff-renamed) 自动重命名', description: '用「副本」后缀避开冲突', value: 'rename' as const },
+					{ label: '$(close) 取消', value: 'cancel' as const },
+				],
+				{ placeHolder: `目标文件夹里有 ${conflicts.length} 个同名文件，怎么处理？`, ignoreFocusOut: true },
+			);
+			if (!conflictChoice || conflictChoice.value === 'cancel') {
+				this.status('已取消拖入。');
+				return;
+			}
+			mode = conflictChoice.value;
+		}
+
+		const names = mode === 'rename'
+			? pasteTargetNames(desiredNames, existing, name => name)
+			: desiredNames;
+		const failures: string[] = [];
+		const touched: string[] = [];
+		for (let index = 0; index < usable.length; index += 1) {
+			const file = usable[index];
+			const destination = vscode.Uri.joinPath(vscode.Uri.file(targetDir), names[index]);
+			try {
+				await vscode.workspace.fs.writeFile(destination, file.bytes!);
+				touched.push(destination.fsPath);
+			} catch (error) {
+				failures.push(`${file.name}：${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
+
+		if (failures.length > 0) {
+			this.status(`拖入失败：${failures[0]}`, 'error');
+			void vscode.window.showWarningMessage(`Wispkit：拖入失败 —— ${failures[0]}`);
+		} else {
+			this.status(`已复制 ${usable.length} 个文件到 ${path.basename(targetDir) || targetDir}`);
+		}
+		await this.refreshLevelsFor([...touched, targetDir]);
+	}
+
+	/** 字符串资源：选类型 → 填名称 → 处理同名 → 落盘。 */
+	private async saveDroppedString(primary: DroppedString, targetDir: string): Promise<void> {
+		let mime = normalizeMime(primary.mime);
+		let text: string | undefined = primary.text;
+		let bytes: Uint8Array | undefined;
+
+		if (/^data:/i.test(text.trim())) {
+			const decoded = decodeDataUrl(text);
+			if (decoded) {
+				mime = decoded.mime;
+				bytes = decoded.bytes;
+				text = undefined;
+			}
+		}
+		await this.saveDroppedResource(mime, text, bytes, undefined, targetDir);
+	}
+
+	/** 「其他类型资源」的另存流程：选类型 → 填名称 → 冲突处理 → 落盘。 */
+	private async saveDroppedResource(
+		mime: string,
+		text: string | undefined,
+		bytes: Uint8Array | undefined,
+		fileName: string | undefined,
+		targetDir: string,
+	): Promise<void> {
+		const types = storageTypesFor(mime, fileName);
+		let type: StorageType | undefined;
+		if (types.length === 1) {
+			type = types[0];
+		} else {
+			const picked = await vscode.window.showQuickPick(
+				types.map(item => ({ label: item.label, description: item.description, type: item })),
+				{ placeHolder: `拖入的是 ${mime} 内容，存为哪种类型？`, ignoreFocusOut: true },
+			);
+			type = picked?.type;
+		}
+		if (!type) {
+			this.status('已取消另存。');
+			return;
+		}
+
+		const suggestion = bytes
+			? (fileName ? `${stemOfFileName(fileName)}${type.extension}` : '')
+			: suggestedFileName(mime, text ?? '', type.extension);
+		const input = await vscode.window.showInputBox({
+			prompt: `将拖入的 ${mime} 内容存为 ${type.extension} 文件（${type.label}）`,
+			value: suggestion,
+			placeHolder: suggestion ? undefined : '未能从内容中提取名称，请自行填写文件名',
+			validateInput: value => validateEntryName(value),
+		});
+		if (input === undefined) {
+			this.status('已取消另存。');
+			return;
+		}
+
+		let name = input.trim();
+		if (!path.extname(name)) {
+			name += type.extension;
+		}
+		const problem = validateEntryName(name);
+		if (problem) {
+			this.status(problem, 'error');
+			return;
+		}
+
+		const existing = new Set((await vscode.workspace.fs.readDirectory(vscode.Uri.file(targetDir))).map(([entry]) => entry));
+		const existingLower = new Set([...existing].map(entry => entry.toLowerCase()));
+		if (existingLower.has(name.toLowerCase())) {
+			const overwrite = await vscode.window.showQuickPick(
+				[
+					{ label: '$(warning) 覆盖', description: `已有 ${name}`, value: 'overwrite' as const },
+					{ label: '$(diff-renamed) 自动重命名', description: '用「副本」后缀避开冲突', value: 'rename' as const },
+					{ label: '$(close) 取消', value: 'cancel' as const },
+				],
+				{ placeHolder: `${name} 已存在，怎么处理？`, ignoreFocusOut: true },
+			);
+			if (!overwrite || overwrite.value === 'cancel') {
+				this.status('已取消另存。');
+				return;
+			}
+			if (overwrite.value === 'rename') {
+				name = uniqueName(existing, name);
+			}
+		}
+
+		const content = renderContentForType(type, { mime, text, bytes });
+		const destination = vscode.Uri.joinPath(vscode.Uri.file(targetDir), name);
+		if (content.bytes) {
+			await vscode.workspace.fs.writeFile(destination, content.bytes);
+		} else {
+			await vscode.workspace.fs.writeFile(destination, Buffer.from(content.text ?? '', 'utf8'));
+		}
+		this.status(`已保存 ${name} 到 ${path.basename(targetDir) || targetDir}`);
+		await this.refreshLevelsFor([destination.fsPath, targetDir]);
+	}
+
 	private async openEntry(targetPath: string): Promise<void> {
 		try {
 			await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(targetPath));
@@ -732,6 +1166,68 @@ export class SubtreePanel {
 			disposable.dispose();
 		}
 	}
+}
+
+/** 消息里的字符串条目：只收 kind='string'、有 mime 与文本的对象。 */
+function readDroppedStrings(value: unknown): DroppedString[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	const out: DroppedString[] = [];
+	for (const raw of value) {
+		if (!raw || typeof raw !== 'object') {
+			continue;
+		}
+		const item = raw as Record<string, unknown>;
+		if (item.kind !== 'string' || typeof item.mime !== 'string' || typeof item.text !== 'string') {
+			continue;
+		}
+		out.push({ kind: 'string', mime: item.mime, text: item.text });
+	}
+	return out;
+}
+
+/** 消息里的文件条目：字节可能是 ArrayBuffer / Uint8Array / Buffer（跨进程序列化会变）。 */
+function readDroppedFiles(value: unknown): DroppedFile[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	const out: DroppedFile[] = [];
+	for (const raw of value) {
+		if (!raw || typeof raw !== 'object') {
+			continue;
+		}
+		const item = raw as Record<string, unknown>;
+		const name = typeof item.name === 'string' ? path.basename(item.name.replace(/[\\/]+/g, '/')) : '';
+		if (!name) {
+			continue;
+		}
+		out.push({
+			kind: 'file',
+			name,
+			mime: typeof item.mime === 'string' ? item.mime : 'application/octet-stream',
+			size: typeof item.size === 'number' && Number.isFinite(item.size) ? item.size : 0,
+			lastModified: typeof item.lastModified === 'number' ? item.lastModified : 0,
+			bytes: toBytes(item.data),
+			error: typeof item.error === 'string' ? item.error : undefined,
+			sourcePath: typeof item.sourcePath === 'string' ? item.sourcePath : undefined,
+		});
+	}
+	return out;
+}
+
+function toBytes(value: unknown): Uint8Array | undefined {
+	if (value instanceof Uint8Array) {
+		return value;
+	}
+	if (value instanceof ArrayBuffer) {
+		return new Uint8Array(value);
+	}
+	if (ArrayBuffer.isView(value)) {
+		const view = value as ArrayBufferView;
+		return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+	}
+	return undefined;
 }
 
 async function entryFor(targetPath: string): Promise<TreeEntry | undefined> {

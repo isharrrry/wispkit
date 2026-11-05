@@ -11,6 +11,7 @@ import {
 	humanizeCommandId,
 	isCommandApplicable,
 	NATIVE_FILE_COMMANDS,
+	nlsFileCandidates,
 	resolveCommandLabel,
 } from '../subtree/explorerCommands';
 import {
@@ -496,6 +497,13 @@ describe('subtree/explorerCommands 过滤与分组', () => {
 		assert.strictEqual(humanizeCommandId('a.b.camelCaseName'), 'Camel Case Name');
 		assert.strictEqual(humanizeCommandId('HTTPServerThing'), 'HTTP Server Thing');
 		assert.strictEqual(humanizeCommandId(''), '未命名命令');
+	});
+
+	it('扩展 nls 优先读当前 UI 语言，缺失时回退英文主版', () => {
+		assert.deepStrictEqual(nlsFileCandidates('zh-cn'), ['package.nls.zh-cn.json', 'package.nls.json']);
+		assert.deepStrictEqual(nlsFileCandidates('pt-BR'), ['package.nls.pt-br.json', 'package.nls.json']);
+		assert.deepStrictEqual(nlsFileCandidates('en'), ['package.nls.json']);
+		assert.deepStrictEqual(nlsFileCandidates(''), ['package.nls.json']);
 	});
 
 	it('扩展贡献的命令：标题是本地化占位符时也不显示 command id', () => {
