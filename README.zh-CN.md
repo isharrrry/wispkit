@@ -32,10 +32,16 @@ npm run package     # 产出 wispkit-<version>.vsix
 
 GitHub Actions CI 在每次 push 与 pull request 上跑同一套门禁：`npm ci` → `npm run lint` → `npm run compile` → `npm test`（见[构建与验证](docs/build-and-verify.zh-CN.md#ci)）。
 
-安装到本机 VS Code（把路径换成你的 `code.cmd`）：
+可以从 [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=harrrry.wispkit) 安装：
+
+```bash
+code --install-extension harrrry.wispkit
+```
+
+也可以自行打包安装到本机 VS Code（把路径换成你的 `code.cmd`）：
 
 ```powershell
-& "D:\app\VSCodeEXE\bin\code.cmd" --install-extension .\wispkit-0.1.0.vsix --force
+& "D:\app\VSCodeEXE\bin\code.cmd" --install-extension .\wispkit-0.2.15.vsix --force
 ```
 
 XAML 视图的渲染器以预编译二进制随扩展分发：`tools/xaml-render/bin/Release/net10.0-windows/` 已入库并会打进 VSIX，**属于运行时依赖，不是构建产物**；发版时不要删除或重新生成，只有改了渲染器源码才需要重建：

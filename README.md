@@ -32,10 +32,16 @@ npm run package     # produces wispkit-<version>.vsix
 
 GitHub Actions CI runs the same gate on every push and pull request: `npm ci` → `npm run lint` → `npm run compile` → `npm test` (see [build and verify](docs/build-and-verify.md#ci)).
 
-Install into your local VS Code (point the path at your own `code.cmd`):
+Install it from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=harrrry.wispkit):
+
+```bash
+code --install-extension harrrry.wispkit
+```
+
+Or build the VSIX locally and install it (point the path at your own `code.cmd`):
 
 ```powershell
-& "D:\app\VSCodeEXE\bin\code.cmd" --install-extension .\wispkit-0.1.0.vsix --force
+& "D:\app\VSCodeEXE\bin\code.cmd" --install-extension .\wispkit-0.2.15.vsix --force
 ```
 
 The XAML view ships its renderer as prebuilt binaries: `tools/xaml-render/bin/Release/net10.0-windows/` is committed and packaged into the VSIX as a **runtime dependency, not a build artifact**. Do not delete or regenerate it for a release; rebuild only after changing the renderer source:

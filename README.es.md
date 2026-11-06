@@ -32,10 +32,16 @@ npm run package     # genera wispkit-<version>.vsix
 
 La CI de GitHub Actions ejecuta la misma puerta en cada push y pull request: `npm ci` → `npm run lint` → `npm run compile` → `npm test` (véase [compilación y verificación](docs/build-and-verify.es.md#ci)).
 
-Instalar en tu VS Code local (ajusta la ruta a tu propio `code.cmd`):
+Instálala desde el [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=harrrry.wispkit):
+
+```bash
+code --install-extension harrrry.wispkit
+```
+
+O construye el VSIX localmente e instálalo (ajusta la ruta a tu propio `code.cmd`):
 
 ```powershell
-& "D:\app\VSCodeEXE\bin\code.cmd" --install-extension .\wispkit-0.1.0.vsix --force
+& "D:\app\VSCodeEXE\bin\code.cmd" --install-extension .\wispkit-0.2.15.vsix --force
 ```
 
 La vista XAML distribuye su renderizador como binarios precompilados: `tools/xaml-render/bin/Release/net10.0-windows/` está versionado y se empaqueta en el VSIX como **dependencia de ejecución, no como artefacto de compilación**. No lo borres ni lo regeneres para publicar; recompílalo solo si cambias el código del renderizador:
