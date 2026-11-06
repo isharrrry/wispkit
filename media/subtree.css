@@ -43,6 +43,11 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
+	/* 工具栏空间紧张时按钮不得被压缩：按钮文字在 CJK 下会折行，把工具栏撑高；
+	   拖拽开始时写入状态栏文本会触发同样的重排，进而让拖拽源行整体位移，
+	   Chromium 会直接取消这次拖拽（表现为「拖动没反应」）。 */
+	flex: 0 0 auto;
+	white-space: nowrap;
 	padding: 3px 10px;
 	border: 1px solid var(--vscode-button-border, transparent);
 	border-radius: 3px;
@@ -178,6 +183,61 @@
 
 .wispkit-subtree-row.is-selected .wispkit-subtree-cell {
 	color: inherit;
+}
+
+/* 可拖出：指针拖拽由 JS 驱动（draggable 恒为 false，避免原生 OLE 拖拽循环卡死） */
+.wispkit-subtree-row {
+	cursor: grab;
+}
+
+.wispkit-subtree-row.is-dragging {
+	opacity: 0.55;
+}
+
+/* 拖动时跟随光标的标签气泡 */
+.wispkit-subtree-drag-ghost {
+	position: fixed;
+	top: 0;
+	left: 0;
+	z-index: 9999;
+	pointer-events: none;
+	max-width: 320px;
+	overflow: hidden;
+	padding: 3px 8px;
+	border: 1px solid var(--vscode-focusBorder, #007fd4);
+	border-radius: 3px;
+	background: var(--vscode-editorWidget-background, rgba(37, 37, 38, 0.96));
+	color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+	font: inherit;
+	line-height: 1.4;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.wispkit-subtree-drag-ghost.is-copy {
+	border-color: var(--vscode-focusBorder, #007fd4);
+}
+
+.wispkit-subtree-drag-ghost.is-move {
+	border-color: var(--vscode-charts-green, #89d185);
+}
+
+body.is-wispkit-pointer-drag {
+	cursor: grabbing;
+	user-select: none;
+}
+
+.wispkit-subtree-row.is-drop-target {
+	outline: 1px dashed var(--vscode-focusBorder, #007fd4);
+	outline-offset: -1px;
+	background: var(--vscode-list-dropBackground, rgba(0, 127, 212, 0.22));
+}
+
+/* 按住 Ctrl 的内部拖动 = 移动：绿色高亮与复制蓝区分开 */
+.wispkit-subtree-tree.is-move-drop .wispkit-subtree-row.is-drop-target {
+	outline-color: var(--vscode-charts-green, #89d185);
+	background: var(--vscode-editorGutter-addedBackground, rgba(137, 209, 133, 0.28));
 }
 
 .wispkit-subtree-cell {
@@ -379,4 +439,105 @@
 	flex: 0 0 auto;
 	color: var(--vscode-descriptionForeground);
 	font-size: 11px;
+}
+
+/* ---------------------------------------------------------------- 右键菜单 */
+
+.wispkit-menu {
+	position: fixed;
+	z-index: 9999;
+	min-width: 190px;
+	max-height: min(70vh, 620px);
+	overflow: auto;
+	/* 滚到菜单首/尾时不要把滚动链传给背后的树，否则树一滚菜单就跟着关了 */
+	overscroll-behavior: contain;
+	box-sizing: border-box;
+	padding: 4px;
+	border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border, rgba(128, 128, 128, 0.35)));
+	border-radius: 5px;
+	background: var(--vscode-menu-background, var(--vscode-editorWidget-background, #252526));
+	color: var(--vscode-menu-foreground, var(--vscode-foreground, #cccccc));
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36));
+}
+
+.wispkit-menu-item {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 4px 10px;
+	border: none;
+	border-radius: 3px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.wispkit-menu-item:hover:not(:disabled),
+.wispkit-menu-item:focus-visible {
+	background: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground));
+	color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground));
+	outline: none;
+}
+
+.wispkit-menu-item:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.wispkit-menu-icon-svg {
+	flex: 0 0 auto;
+	width: 14px;
+	height: 14px;
+}
+
+.wispkit-menu-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.wispkit-menu-badge {
+	margin-left: auto;
+	flex: 0 0 auto;
+	padding-left: 10px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+}
+
+.wispkit-menu-separator {
+	height: 1px;
+	margin: 4px 6px;
+	background: var(--vscode-menu-separatorBackground, var(--vscode-panel-border, rgba(128, 128, 128, 0.35)));
+}
+
+/* ---------------------------------------------------------------- 拖拽光标 */
+
+/*
+ * 指针拖拽时让系统光标直接显示动作（复制＝带加号，移动＝十字箭头）。
+ * 行本身的 grab 光标在拖动期间会被 body 上的类覆盖，用户一眼能看出正在拖东西。
+ */
+body.is-wispkit-pointer-drag.is-copy-drag,
+body.is-wispkit-pointer-drag.is-copy-drag * {
+	cursor: copy !important;
+}
+
+body.is-wispkit-pointer-drag.is-move-drag,
+body.is-wispkit-pointer-drag.is-move-drag * {
+	cursor: move !important;
+}
+
+.wispkit-subtree-drag-ghost.is-outside {
+	border-style: dashed;
+}
+
+.wispkit-subtree-drag-ghost.is-outside.is-copy {
+	border-color: var(--vscode-charts-blue, var(--vscode-focusBorder, #007fd4));
+}
+
+.wispkit-subtree-drag-ghost.is-outside.is-move {
+	border-color: var(--vscode-charts-green, #89d185);
 }

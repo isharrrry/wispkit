@@ -116,11 +116,13 @@ const ICONS: Readonly<Record<string, string>> = {
 	action: '<path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/>',
 	'sort-asc': '<path d="M4 10 8 6 12 10"/>',
 	'sort-desc': '<path d="M4 6 8 10 12 6"/>',
+	'arrow-up': '<path d="M8 13V3M4.5 6.5 8 3l3.5 3.5"/>',
+	'chevron-down': '<path d="M4 6l4 4 4-4"/>',
 };
 
 export const SUBTREE_ICON_NAMES: readonly string[] = Object.keys(ICONS);
 
-function iconSprite(): string {
+export function subtreeIconSprite(): string {
 	const symbols = Object.entries(ICONS)
 		.map(([name, body]) => `<symbol id="wispkit-icon-${name}" viewBox="0 0 16 16" `
 			+ `fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">`
@@ -129,7 +131,7 @@ function iconSprite(): string {
 	return `<svg class="wispkit-subtree-sprite" aria-hidden="true" focusable="false" width="0" height="0">${symbols}</svg>`;
 }
 
-function iconMarkup(name: string, extraClass?: string): string {
+export function subtreeIconMarkup(name: string, extraClass?: string): string {
 	const className = extraClass ? `wispkit-subtree-icon-svg ${extraClass}` : 'wispkit-subtree-icon-svg';
 	return `<svg class="${className}" aria-hidden="true" focusable="false"><use href="#wispkit-icon-${escapeAttribute(name)}"></use></svg>`;
 }
@@ -156,18 +158,19 @@ export function renderSubtreePage(options: SubtreePageOptions): string {
 	<link rel="stylesheet" type="text/css" href="${escapeAttribute(options.runtimeStyle)}">
 </head>
 <body>
-	${iconSprite()}
+	${subtreeIconSprite()}
 	<div class="wispkit-subtree-shell">
 		<div class="wispkit-subtree-toolbar" role="toolbar" aria-label="子树浏览">
-			<button type="button" class="wispkit-subtree-btn" id="wispkit-subtree-refresh" title="重新读取整棵树">${iconMarkup('refresh')}<span>刷新</span></button>
-			<button type="button" class="wispkit-subtree-btn" id="wispkit-subtree-collapse-all" title="折叠所有已展开的层级">${iconMarkup('collapse-all')}<span>全部折叠</span></button>
-			<button type="button" class="wispkit-subtree-btn" id="wispkit-subtree-expand-root" title="展开子树里选中文件夹的一层（可多选；没有选中时展开根目录）">${iconMarkup('expand-all')}<span>展开一层</span></button>
+			<button type="button" class="wispkit-subtree-btn" id="wispkit-subtree-refresh" title="重新读取整棵树">${subtreeIconMarkup('refresh')}<span>刷新</span></button>
+			<button type="button" class="wispkit-subtree-btn" id="wispkit-subtree-collapse-all" title="折叠所有已展开的层级">${subtreeIconMarkup('collapse-all')}<span>全部折叠</span></button>
+			<button type="button" class="wispkit-subtree-btn" id="wispkit-subtree-expand-root" title="展开子树里选中文件夹的一层（可多选；没有选中时展开根目录）">${subtreeIconMarkup('expand-all')}<span>展开一层</span></button>
+			<button type="button" class="wispkit-subtree-btn" id="wispkit-subtree-dnd-help" title="拖入文件 / 文本，树内按住 Ctrl 拖动条目 = 移动，或把条目拖出到桌面、资源管理器">${subtreeIconMarkup('link')}<span>拖放说明</span></button>
 			<span class="wispkit-subtree-toolbar-spacer"></span>
 			<span class="wispkit-subtree-status" id="wispkit-subtree-status" role="status"></span>
 			<span class="wispkit-subtree-selected-path" id="wispkit-subtree-selected-path" title="${escapeAttribute(config.rootPath)}">${escapeHtml(config.rootPath)}</span>
 		</div>
 		<div class="wispkit-subtree-main" id="wispkit-subtree-main">
-			<div class="wispkit-subtree-tree" id="wispkit-subtree-tree">
+			<div class="wispkit-subtree-tree" id="wispkit-subtree-tree" title="拖入：文件会询问复制/移动，文本等资源会询问存储类型与名称；从系统资源管理器直接拖入即可（不需要按 Shift）。树内拖动条目按住 Ctrl = 直接移动（不再询问，左右树互拖同样适用）。条目也可以直接拖出到桌面/资源管理器。">
 				<div class="wispkit-subtree-header" id="wispkit-subtree-header" role="row"></div>
 				<div class="wispkit-subtree-rows" id="wispkit-subtree-rows" role="tree" aria-label="目录树" tabindex="0"></div>
 			</div>

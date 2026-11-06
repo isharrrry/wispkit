@@ -89,7 +89,7 @@ async function readExtensionNls(extensionUri: vscode.Uri): Promise<Record<string
 }
 
 /** 内置白名单里不存在的命令直接从界面上消失 —— 只筛内置，扩展贡献的留到执行时校验。 */
-async function availableExplorerCommands(): Promise<ExplorerCommand[]> {
+export async function availableExplorerCommands(): Promise<ExplorerCommand[]> {
 	const contributions: ExtensionContribution[] = [];
 	// 只有真的贡献了 explorer/context 的扩展才值得为它读一次 nls（异步 IO，不做无谓的）
 	for (const extension of vscode.extensions.all) {
@@ -134,6 +134,52 @@ function readPaths(message: Record<string, unknown>): string[] {
 		return message.paths.filter((item): item is string => typeof item === 'string' && item.length > 0);
 	}
 	return typeof message.path === 'string' && message.path ? [message.path] : [];
+}
+
+/** 运行一次 PowerShell，返回是否成功 + stdout；失败不抛异常（拖出只是尽力而为）。 */
+function runPowerShell(args: readonly string[], timeout: number): Promise<{ ok: boolean; stdout: string }> {
+	return new Promise(resolve => {
+		execFile('powershell.exe', [...args], { timeout, windowsHide: true, maxBuffer: 1024 * 1024 }, (error, stdout) => {
+			resolve({ ok: !error, stdout: String(stdout ?? '') });
+		});
+	});
+}
+
+/** 光标下的资源管理器窗口当前目录；不是资源管理器 / 拿不到目录时返回空串。 */
+export async function findExplorerDropTarget(scriptPath: string): Promise<string> {
+	try {
+		const result = await runPowerShell(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath], 8000);
+		if (!result.ok) {
+			return '';
+		}
+		const line = result.stdout.trim().split(/\r?\n/).filter(Boolean).pop() ?? '{}';
+		const parsed = JSON.parse(line) as { ok?: unknown; folder?: unknown };
+		return parsed?.ok === true && typeof parsed.folder === 'string' ? parsed.folder : '';
+	} catch {
+		return '';
+	}
+}
+
+/** 把文件列表放进 Windows 剪贴板（CF_HDROP），资源管理器里可直接 Ctrl+V。 */
+export async function copyPathsToSystemClipboard(paths: readonly string[]): Promise<boolean> {
+	const encoded = Buffer.from(JSON.stringify(paths), 'utf8').toString('base64');
+	const script = [
+		'Add-Type -AssemblyName System.Windows.Forms',
+		`$json=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}'))`,
+		'$items=ConvertFrom-Json $json',
+		'$list=New-Object System.Collections.Specialized.StringCollection',
+		'foreach($p in $items){[void]$list.Add([string]$p)}',
+		'[System.Windows.Forms.Clipboard]::SetFileDropList($list)',
+	].join('; ');
+	// 剪贴板偶尔被其他进程占用（OpenClipboard failed），重试几次即可
+	for (let attempt = 0; attempt < 3; attempt += 1) {
+		const result = await runPowerShell(['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-Command', script], 10000);
+		if (result.ok) {
+			return true;
+		}
+		await new Promise(resolve => setTimeout(resolve, 150));
+	}
+	return false;
 }
 
 /**
@@ -323,6 +369,9 @@ export class SubtreePanel {
 				return;
 			case 'wispkit.subtree.drop':
 				await this.handleDrop(message);
+				return;
+			case 'wispkit.subtree.dragOut':
+				await this.handleDragOut(message);
 				return;
 			default:
 				return;
@@ -748,6 +797,40 @@ export class SubtreePanel {
 	}
 
 	/**
+	 * 指针拖到 webview 之外松手 = 拖出到系统。
+	 *
+	 * VS Code 1.137 的 webview 一旦走 HTML5 原生拖拽（`draggable=true`）就会进入
+	 * 原生 OLE 拖拽循环并把主进程卡死（拖到资源管理器时必现）。所以拖拽改用
+	 * Pointer Events；松手后由宿主模拟落点：
+	 * 1. 光标在资源管理器窗口上 → 直接复制 / 移动到该窗口当前目录（Ctrl = 移动）；
+	 * 2. 否则把文件放进 Windows 剪贴板（CF_HDROP），用户可在资源管理器 Ctrl+V 粘贴。
+	 */
+	private async handleDragOut(message: Record<string, unknown>): Promise<void> {
+		const paths = readPaths(message);
+		if (paths.length === 0) {
+			return;
+		}
+		const moveRequested = message.moveRequested === true;
+		if (process.platform !== 'win32' || vscode.env.remoteName) {
+			await vscode.env.clipboard.writeText(paths.join('\r\n'));
+			this.status('已把条目路径复制到剪贴板（拖出到系统只支持本机 Windows）。');
+			return;
+		}
+		const folder = await findExplorerDropTarget(this.context.asAbsolutePath(path.join('resources', 'drop-target.ps1')));
+		if (folder) {
+			await this.copyOrMoveDroppedPaths(paths, folder, moveRequested, false);
+			return;
+		}
+		const copied = await copyPathsToSystemClipboard(paths);
+		if (copied) {
+			this.status(`已把 ${paths.length} 个条目放入剪贴板，在资源管理器里 Ctrl+V 即可粘贴。`);
+			void vscode.window.showInformationMessage('Wispkit：已把文件放入剪贴板，可在资源管理器里按 Ctrl+V 粘贴。');
+			return;
+		}
+		this.status('没有找到可放置的资源管理器窗口。', 'error');
+	}
+
+	/**
 	 * 拖入资源。三类来源走三条路：
 	 * 1. `text/uri-list` / `text/plain` 里能解析出真实路径 → 复制 / 移动；
 	 * 2. OS 直接拖入的 File（只有内容、没有源路径）→ 询问后复制内容；
@@ -886,11 +969,15 @@ export class SubtreePanel {
 		sources: readonly string[],
 		targetDir: string,
 		moveByModifier = false,
+		ask = true,
 	): Promise<void> {
 		const scope = sources.length > 1 ? ` ${sources.length} 个条目` : `「${shortName(path.basename(sources[0]), 30)}」`;
 		let operation: 'copy' | 'move';
 		if (moveByModifier) {
 			operation = 'move';
+		} else if (!ask) {
+			// 拖到系统资源管理器 = 默认复制（按住 Ctrl 已经是 moveByModifier）
+			operation = 'copy';
 		} else {
 			const choice = await vscode.window.showQuickPick(
 				[
@@ -1169,7 +1256,7 @@ export class SubtreePanel {
 }
 
 /** 消息里的字符串条目：只收 kind='string'、有 mime 与文本的对象。 */
-function readDroppedStrings(value: unknown): DroppedString[] {
+export function readDroppedStrings(value: unknown): DroppedString[] {
 	if (!Array.isArray(value)) {
 		return [];
 	}
@@ -1188,7 +1275,7 @@ function readDroppedStrings(value: unknown): DroppedString[] {
 }
 
 /** 消息里的文件条目：字节可能是 ArrayBuffer / Uint8Array / Buffer（跨进程序列化会变）。 */
-function readDroppedFiles(value: unknown): DroppedFile[] {
+export function readDroppedFiles(value: unknown): DroppedFile[] {
 	if (!Array.isArray(value)) {
 		return [];
 	}

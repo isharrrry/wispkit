@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "roots": [
+    {
+      "type": "group",
+      "id": "g-demo-workspace",
+      "name": "演示工作区",
+      "children": [
+        {
+          "type": "folder",
+          "id": "f-demo-docs",
+          "name": "文档",
+          "path": "${workspaceFolder}/docs",
+          "children": []
+        },
+        {
+          "type": "group",
+          "id": "g-demo-projects",
+          "name": "项目（虚拟组）",
+          "children": [
+            {
+              "type": "folder",
+              "id": "f-demo-frontend",
+              "name": "前端",
+              "path": "${workspaceFolder}/projects/frontend",
+              "children": [
+                {
+                  "type": "folder",
+                  "id": "f-demo-components",
+                  "name": "组件",
+                  "path": "${workspaceFolder}/projects/frontend/components",
+                  "children": []
+                },
+                {
+                  "type": "group",
+                  "id": "g-demo-archive",
+                  "name": "归档（虚拟组）",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "type": "folder",
+              "id": "f-demo-backend",
+              "name": "后端",
+              "path": "${workspaceFolder}/projects/backend",
+              "children": [
+                {
+                  "type": "group",
+                  "id": "g-demo-api",
+                  "name": "接口（虚拟组）",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "folder",
+          "id": "f-demo-sibling",
+          "name": "兄弟素材（相对路径）",
+          "path": "../R2-toc",
+          "children": []
+        }
+      ]
+    }
+  ]
+}

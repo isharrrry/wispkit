@@ -1,11 +1,14 @@
 /**
- * 子树浏览前端。纯自包含 ESM —— 宿主用 `<script type="module" src="media/subtree.js" nonce=...>`
- * 直接引它，不经 esbuild 打包（也就没有 dist 产物）。
+ * 子树浏览前端。ESM —— 宿主用 `<script type="module" src="media/subtree.js" nonce=...>`
+ * 直接引它（共享的右键菜单 / 拖入读取模块用相对 import），不经 esbuild 打包。
  *
  * 树的观感对齐资源管理器：紧凑行、懒加载展开、多列（列由宿主按配置下发）。
  * 单元格文本与**排序**都由宿主负责（它有原始 size/mtime，前端只有格式化文本），
  * 前端只做摆放、选择与交互。
  */
+
+import { createContextMenu } from './shared/contextmenu.js';
+import { MAX_DROP_STRING_CHARS, readDroppedFiles, snapshotDrop } from './shared/filedrop.js';
 
 const READING = '正在读取…';
 
@@ -42,6 +45,9 @@ try {
 	hostApi = null;
 }
 
+/** 页面内右键菜单（VS Code 没有从 webview 弹原生菜单的 API）。 */
+const contextMenu = createContextMenu();
+
 let config = readConfig() ?? {
 	rootPath: '', rootName: '', owner: '', columns: [], commands: [], tools: [], sort: { key: 'name', direction: 'asc' },
 };
@@ -70,10 +76,22 @@ let typeAheadBuffer = '';
 let typeAheadTimer = null;
 /** 最后一条发出的消息，供自动化断言「批量操作真的带上了所有选中项」。 */
 let lastMessage = null;
+/**
+ * 本页发起、尚未结束的拖拽。记住 dragstart 那一刻的 Ctrl/Cmd 状态 ——
+ * 用户「先按下 Ctrl 再拖」之后可能在松手前就放开了 Ctrl，drop 时只看事件
+ * 的 ctrlKey 会漏判。
+ */
+let dragSession = null;
+/** 拖拽会话的最长存活时间：正常拖拽几秒内必有 drop / dragend，超时视为残留。 */
+const DRAG_SESSION_MAX_AGE_MS = 30_000;
 
-function post(message) {
+function post(message, transfer) {
 	lastMessage = message;
-	hostApi?.postMessage(message);
+	if (transfer && transfer.length > 0) {
+		hostApi?.postMessage(message, transfer);
+	} else {
+		hostApi?.postMessage(message);
+	}
 }
 
 function setStatus(message, kind) {
@@ -91,6 +109,466 @@ function nextRequestId() {
 
 function requestLevel(path) {
 	post({ type: 'wispkit.subtree.read', requestId: nextRequestId(), path });
+}
+
+/* ---------------------------------------------------------------- 拖拽：条目拖出 / 内容拖入 */
+
+/**
+ * 本扩展拖拽源写进 DataTransfer 的私有类型（拖拽数据存储里的 MIME 一律小写）。
+ *
+ * drop 时用它区分「从 Wispkit 子树里拖出来的条目」和「从系统/其他应用拖进来的文件」：
+ * 只有前者才把 Ctrl 当作移动。系统文件拖入时 Ctrl 在资源管理器里恰恰是**复制**，
+ * 反着解释会误删源文件。
+ */
+const WISPKIT_DRAG_TYPE = 'application/x-wispkit-subtree';
+
+/** 取仍然有效的拖拽会话；超时的残留会话直接丢掉。 */
+function activeDragSession() {
+	if (dragSession && Date.now() - dragSession.at > DRAG_SESSION_MAX_AGE_MS) {
+		dragSession = null;
+	}
+	return dragSession;
+}
+
+/** DataTransfer 的类型列表（环境不支持时为空数组）。 */
+function dragTypes(dataTransfer) {
+	try {
+		return Array.from(dataTransfer?.types ?? []).map(type => String(type).toLowerCase());
+	} catch {
+		return [];
+	}
+}
+
+/**
+ * 这次 drop 是不是从 Wispkit 子树拖出来的？
+ *
+ * - 系统/其他应用拖入一定带 `Files` 类型：即使上一次内部拖拽因为异常没收到
+ *   dragend、`dragSession` 还残留，也绝不能再把系统文件当成内部拖拽
+ *   （Windows 资源管理器里 Ctrl 是复制，误判会删源文件）；
+ * - 同页拖动：dragstart 设置了 `dragSession`，一定是我们自己；
+ * - 左右两个子树面板互拖：目标页收不到源的 dragstart，只能看 dragstart 写入的私有 MIME。
+ */
+function isWispkitDrag(dataTransfer) {
+	const types = dragTypes(dataTransfer);
+	if (types.includes('files')) {
+		return false;
+	}
+	if (activeDragSession()) {
+		return true;
+	}
+	return types.some(type => type === WISPKIT_DRAG_TYPE);
+}
+
+/** 拖动过程中是否处于「Ctrl/Cmd = 移动」语义（含 dragstart 时按下、中途松开的）。 */
+function isMoveDrag(event) {
+	return isWispkitDrag(event?.dataTransfer)
+		&& (Boolean(event?.ctrlKey || event?.metaKey) || Boolean(activeDragSession()?.moveModifier));
+}
+
+/**
+ * 绝对路径 → `file://` URL。逐段编码，避免空格 / `#` / `?` 把 URL 拆坏；
+ * Windows 盘符保留 `D:` 原样（`file:///D:/a%20b`）。
+ */
+function toFileUrl(fsPath) {
+	const value = String(fsPath ?? '').replace(/\\/g, '/');
+	if (/^[A-Za-z]:\//.test(value)) {
+		const drive = value.slice(0, 2);
+		const segments = value.slice(3).split('/').filter(Boolean).map(encodeURIComponent);
+		return `file:///${drive}/${segments.join('/')}`;
+	}
+	if (value.startsWith('//')) {
+		const parts = value.slice(2).split('/').filter(Boolean);
+		const host = parts.shift() ?? '';
+		return `file://${host}/${parts.map(encodeURIComponent).join('/')}`;
+	}
+	if (value.startsWith('/')) {
+		const segments = value.split('/').filter(Boolean).map(encodeURIComponent);
+		return `file:///${segments.join('/')}`;
+	}
+	return `file:///${encodeURIComponent(value)}`;
+}
+
+/**
+ * 拖出时写进 DataTransfer 的全部载荷。
+ *
+ * - `text/uri-list` / `ResourceURLs` / `CodeFiles`：拖回 VS Code 内部时能被识别成资源；
+ * - `DownloadURL`：拖到桌面 / 资源管理器时由 Chromium 落成**真实文件**（只支持单个文件，
+ *   与 VS Code 自己的标签页拖出行为一致）；
+ * - `text/plain`：给普通文本目标（终端、编辑器）一个可读路径。
+ */
+function dragPayloadForRows(rows) {
+	const paths = rows.map(row => row.path);
+	const uris = paths.map(toFileUrl);
+	const firstFile = rows.find(row => !row.isDirectory);
+	return {
+		paths,
+		text: paths.join('\r\n'),
+		uriList: uris.join('\r\n'),
+		resourceUrls: JSON.stringify(uris),
+		codeFiles: JSON.stringify(paths),
+		downloadUrl: firstFile
+			? `application/octet-stream:${firstFile.name}:${toFileUrl(firstFile.path)}`
+			: undefined,
+	};
+}
+
+/** 拖放目标：文件行落到它的父目录；文件夹行落到自己；空白处落到选中文件夹或根。 */
+function dropTargetForRow(row) {
+	if (!row) {
+		const selected = selection.length === 1 ? findRow(selection[0]) : null;
+		return selected?.isDirectory ? selected.path : config.rootPath;
+	}
+	if (row.isDirectory) {
+		return row.path;
+	}
+	if (row.parentPath) {
+		return row.parentPath;
+	}
+	const value = String(row.path ?? '');
+	const slash = Math.max(value.lastIndexOf('\\'), value.lastIndexOf('/'));
+	if (slash > 0) {
+		return slash === 2 && value[1] === ':' ? value.slice(0, 3) : value.slice(0, slash);
+	}
+	return config.rootPath;
+}
+
+function clearDropHighlight() {
+	for (const element of rowsElement?.querySelectorAll('.is-drop-target') ?? []) {
+		element.classList.remove('is-drop-target');
+	}
+	rowsElement?.closest('.wispkit-subtree-tree')?.classList.remove('is-move-drop');
+}
+
+function highlightDropTarget(row) {
+	clearDropHighlight();
+	if (!row || !rowsElement) {
+		return;
+	}
+	const target = row.isDirectory ? row : findRow(row.parentPath);
+	if (!target) {
+		return;
+	}
+	for (const element of rowsElement.querySelectorAll('.wispkit-subtree-row')) {
+		if (element.dataset.path === target.path) {
+			element.classList.add('is-drop-target');
+			break;
+		}
+	}
+}
+
+// ── 指针拖拽（不依赖 HTML5 原生拖拽）──────────────────────────────────────
+//
+// VS Code 1.137 / Electron 的 webview 里，`draggable=true` 的行一旦被鼠标
+// 拖动，Chromium 就会进入原生 OLE 拖拽循环。真机上这个循环不会正常结束：
+// 主进程 Responding=false、单核 100%，drop / dragend 都不触发，拖到系统资源
+// 管理器时尤其明显。这里和对比浏览一样改成 pointerdown/pointermove/pointerup
+// 自己跟踪拖拽，**不设置 draggable**，从源头上不进原生拖拽循环。
+
+const POINTER_DRAG_THRESHOLD = 5;
+
+/** 当前指针拖拽会话（一次只有一个）。 */
+let pointerDrag = null;
+/** 拖拽结束后要吞掉一次 click，避免把松手当成点选。 */
+let suppressNextClick = false;
+
+function dragGhostLabel(rows, moveHint, outside) {
+	const label = rows.length > 1 ? `${rows.length} 个条目` : rows[0]?.name ?? '条目';
+	if (outside) {
+		return `${label} · 松开 = ${moveHint ? '移动到' : '复制到'}资源管理器`;
+	}
+	return `${label} · ${moveHint ? '移动' : '复制'}`;
+}
+
+function createDragGhost(rows, moveHint) {
+	const ghost = document.createElement('div');
+	ghost.className = 'wispkit-subtree-drag-ghost';
+	ghost.setAttribute('aria-hidden', 'true');
+	ghost.textContent = dragGhostLabel(rows, moveHint, false);
+	ghost.classList.toggle('is-move', moveHint);
+	ghost.classList.toggle('is-copy', !moveHint);
+	document.body.appendChild(ghost);
+	return ghost;
+}
+
+/** 拖到 webview 外时把气泡贴到窗口边缘，仍能看见「松开 = 复制/移动」提示。 */
+function positionDragGhost(ghost, event) {
+	if (!ghost) {
+		return;
+	}
+	// 按气泡自身尺寸夹取：拖出视口时把整条提示留在窗口内，而不是只露一角
+	const width = ghost.offsetWidth || 0;
+	const height = ghost.offsetHeight || 0;
+	const maxX = Math.max(0, (window.innerWidth || 0) - width - 8);
+	const maxY = Math.max(0, (window.innerHeight || 0) - height - 8);
+	const x = Math.min(Math.max(event.clientX + 14, 0), maxX);
+	const y = Math.min(Math.max(event.clientY + 12, 0), maxY);
+	ghost.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+}
+
+function updateDragGhost(ghost, rows, moveHint, outside = false) {
+	if (!ghost) {
+		return;
+	}
+	ghost.textContent = dragGhostLabel(rows, moveHint, outside);
+	ghost.classList.toggle('is-move', moveHint);
+	ghost.classList.toggle('is-copy', !moveHint);
+	ghost.classList.toggle('is-outside', outside);
+}
+
+function pointerDragMoveHint(event, drag) {
+	return Boolean(event?.ctrlKey || event?.metaKey || drag?.moveModifierAtStart);
+}
+
+function pointerDragRows(drag) {
+	return drag.rows?.length ? drag.rows : [drag.row];
+}
+
+function pointerInsideViewport(event) {
+	return event.clientX >= 0
+		&& event.clientY >= 0
+		&& event.clientX < window.innerWidth
+		&& event.clientY < window.innerHeight;
+}
+
+/** 指针下的树内行（不在树区域内返回 null）。 */
+function pointerDragHitRow(event) {
+	if (!pointerInsideViewport(event) || !treeElement) {
+		return null;
+	}
+	const hit = document.elementFromPoint(event.clientX, event.clientY);
+	if (!hit || !treeElement.contains(hit)) {
+		return null;
+	}
+	const rowElement = hit.closest?.('.wispkit-subtree-row') ?? null;
+	return rowElement ? findRow(rowElement.dataset.path) : null;
+}
+
+function updatePointerDropTarget(drag, event) {
+	const outside = !pointerInsideViewport(event);
+	const row = outside ? null : pointerDragHitRow(event);
+	const insideTree = !outside && (Boolean(row) || Boolean(treeElement?.contains(
+		document.elementFromPoint(event.clientX, event.clientY),
+	)));
+	const moveHint = pointerDragMoveHint(event, drag);
+	if (insideTree) {
+		highlightDropTarget(row);
+		treeElement?.classList.toggle('is-move-drop', moveHint);
+	} else {
+		clearDropHighlight();
+	}
+	// 鼠标光标本身就是「正在拖拽」最直接的反馈：copy / move 系统光标 + 跟随气泡
+	document.body.classList.toggle('is-copy-drag', !moveHint);
+	document.body.classList.toggle('is-move-drag', moveHint);
+	drag.targetRow = row;
+	drag.insideTree = insideTree;
+	updateDragGhost(drag.ghost, pointerDragRows(drag), moveHint, outside);
+}
+
+function removePointerDragListeners() {
+	window.removeEventListener('pointermove', onPointerDragMove, true);
+	window.removeEventListener('pointerup', onPointerDragUp, true);
+	window.removeEventListener('pointercancel', onPointerCancelDrag, true);
+	window.removeEventListener('keydown', onPointerDragKeydown, true);
+	window.removeEventListener('blur', onPointerDragBlur, true);
+}
+
+function finishPointerDrag(resetHighlight = true) {
+	const drag = pointerDrag;
+	if (!drag) {
+		return;
+	}
+	pointerDrag = null;
+	removePointerDragListeners();
+	document.body.classList.remove('is-wispkit-pointer-drag');
+	document.body.classList.remove('is-copy-drag', 'is-move-drag');
+	drag.element.classList.remove('is-dragging');
+	drag.ghost?.remove();
+	if (resetHighlight) {
+		clearDropHighlight();
+	}
+	try {
+		drag.element.releasePointerCapture?.(drag.pointerId);
+	} catch {
+		// 元素已经被重绘时释放捕获会抛错，忽略
+	}
+}
+
+function onPointerDragMove(event) {
+	const drag = pointerDrag;
+	if (!drag) {
+		return;
+	}
+	if (!drag.active) {
+		const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+		if (distance < POINTER_DRAG_THRESHOLD) {
+			return;
+		}
+		drag.active = true;
+		if (!isSelected(drag.row.path)) {
+			selectOnlyForDrag(drag.row.path);
+		}
+		drag.rows = selection.map(path => findRow(path)).filter(Boolean);
+		if (drag.rows.length === 0) {
+			drag.rows = [drag.row];
+		}
+		drag.element.classList.add('is-dragging');
+		document.body.classList.add('is-wispkit-pointer-drag');
+		drag.ghost = createDragGhost(drag.rows, pointerDragMoveHint(event, drag));
+	}
+	updatePointerDropTarget(drag, event);
+	positionDragGhost(drag.ghost, event);
+	event.preventDefault();
+}
+
+function onPointerDragUp(event) {
+	const drag = pointerDrag;
+	if (!drag) {
+		return;
+	}
+	if (!drag.active) {
+		// 没有越过阈值：保留普通点击 / 双击行为
+		finishPointerDrag(false);
+		return;
+	}
+	updatePointerDropTarget(drag, event);
+	const rows = pointerDragRows(drag);
+	const paths = rows.map(row => row.path);
+	const moveRequested = pointerDragMoveHint(event, drag);
+	const ctrlKey = Boolean(event.ctrlKey || event.metaKey);
+	const shiftKey = Boolean(event.shiftKey);
+	const insideTree = drag.insideTree;
+	const targetRow = drag.targetRow;
+	finishPointerDrag();
+	// 拖到 webview 之外松手 = 拖出到系统（资源管理器 / 桌面）
+	if (!pointerInsideViewport(event)) {
+		post({ type: 'wispkit.subtree.dragOut', paths, ctrlKey, shiftKey, moveRequested });
+		return;
+	}
+	suppressNextClick = true;
+	if (!insideTree) {
+		return;
+	}
+	const targetDir = dropTargetForRow(targetRow);
+	if (!targetDir) {
+		setStatus('没有可放置的目标文件夹。', 'error');
+		return;
+	}
+	// 与原来的 drag/drop 走同一条宿主消息：宿主按 uri-list 解析源路径
+	const uriList = paths.map(toFileUrl).join('\r\n');
+	setStatus(moveRequested ? '正在移动…' : '正在复制…');
+	post({
+		type: 'wispkit.subtree.drop',
+		targetDir,
+		files: [],
+		strings: [{ kind: 'string', mime: 'text/uri-list', text: uriList }],
+		shiftKey,
+		ctrlKey,
+		internalDrag: true,
+		moveRequested,
+	});
+}
+
+function onPointerCancelDrag() {
+	finishPointerDrag();
+}
+
+function onPointerDragKeydown(event) {
+	if (event.key === 'Escape') {
+		event.preventDefault();
+		finishPointerDrag();
+	}
+}
+
+function onPointerDragBlur() {
+	finishPointerDrag();
+}
+
+function beginPointerDrag(row, element, event) {
+	if (pointerDrag || event.button !== 0) {
+		return;
+	}
+	// 展开箭头等按钮上的按下不启动拖拽
+	if (event.target?.closest?.('button')) {
+		return;
+	}
+	pointerDrag = {
+		row,
+		element,
+		pointerId: event.pointerId,
+		startX: event.clientX,
+		startY: event.clientY,
+		active: false,
+		moveModifierAtStart: Boolean(event.ctrlKey || event.metaKey),
+		rows: null,
+		targetRow: null,
+		insideTree: false,
+		ghost: null,
+	};
+	try {
+		element.setPointerCapture?.(event.pointerId);
+	} catch {
+		// 某些环境不支持指针捕获，仍可在窗口内拖动
+	}
+	window.addEventListener('pointermove', onPointerDragMove, true);
+	window.addEventListener('pointerup', onPointerDragUp, true);
+	window.addEventListener('pointercancel', onPointerCancelDrag, true);
+	window.addEventListener('keydown', onPointerDragKeydown, true);
+	window.addEventListener('blur', onPointerDragBlur, true);
+}
+
+document.addEventListener('click', event => {
+	if (!suppressNextClick) {
+		return;
+	}
+	suppressNextClick = false;
+	event.preventDefault();
+	event.stopPropagation();
+}, true);
+
+/** drop 的完整处理：读取 → 发给宿主（宿主负责询问与落盘）。 */
+async function handleDrop(event) {
+	event.preventDefault();
+	event.stopPropagation();
+	const rowElement = event.target?.closest?.('.wispkit-subtree-row');
+	const row = rowElement ? findRow(rowElement.dataset.path) : null;
+	const targetDir = dropTargetForRow(row);
+	// 修饰键状态要在同步阶段取值：进入 await 后事件对象可能已被复用。
+	const internalDrag = isWispkitDrag(event.dataTransfer);
+	const ctrlKey = Boolean(event.ctrlKey || event.metaKey);
+	const moveRequested = internalDrag && (ctrlKey || Boolean(activeDragSession()?.moveModifier));
+	dragSession = null;
+	clearDropHighlight();
+
+	const snapshot = snapshotDrop(event.dataTransfer);
+	const strings = (await Promise.all(snapshot.stringPromises))
+		.filter(Boolean)
+		.filter(item => item.text.length <= MAX_DROP_STRING_CHARS);
+	const files = await readDroppedFiles(snapshot.fileObjects);
+
+	if (snapshot.directories.length > 0) {
+		setStatus(`暂不支持拖入文件夹：${snapshot.directories.join('、')}`, 'error');
+		if (files.length === 0 && strings.length === 0) {
+			return;
+		}
+	}
+	if (files.length === 0 && strings.length === 0) {
+		setStatus('没有可导入的内容。', 'error');
+		return;
+	}
+
+	setStatus(moveRequested ? '正在移动拖入的条目…' : '正在接收拖入的内容…');
+	const buffers = files.map(file => file.data).filter(Boolean);
+	post({
+		type: 'wispkit.subtree.drop',
+		targetDir,
+		files,
+		strings,
+		shiftKey: Boolean(event.shiftKey),
+		// 原始键态 + 派生结论一起给宿主：宿主只信「内部拖拽 + 明确要求移动」
+		ctrlKey,
+		internalDrag,
+		moveRequested,
+	}, buffers);
 }
 
 /**
@@ -384,6 +862,55 @@ function makeRow(row, depth) {
 		}
 	});
 
+	// 不用 HTML5 原生拖拽：VS Code webview 里它会进入原生 OLE 拖拽循环并卡死
+	// VS Code（拖到系统资源管理器时必现，见 pointerDrag 段注释）。draggable 保持
+	// false，真实鼠标拖动完全由 pointerdown/pointermove/pointerup 驱动。
+	element.draggable = false;
+	element.addEventListener('pointerdown', event => {
+		beginPointerDrag(row, element, event);
+	});
+	// 保留 dragstart/dragend 监听：自动化探针 / 单测直接派发合成事件时仍走原逻辑。
+	element.addEventListener('dragstart', event => {
+		if (!isSelected(row.path)) {
+			selectOnlyForDrag(row.path);
+		}
+		const rows = selection.map(path => findRow(path)).filter(Boolean);
+		if (rows.length === 0 || !event.dataTransfer) {
+			return;
+		}
+		const payload = dragPayloadForRows(rows);
+		// 「先按下 Ctrl 再拖」= 移动：在 dragstart 记下来，drop 时即使 Ctrl 已松开也算数
+		dragSession = { moveModifier: Boolean(event.ctrlKey || event.metaKey), at: Date.now() };
+		event.dataTransfer.effectAllowed = 'copyMove';
+		event.dataTransfer.setData('text/plain', payload.text);
+		event.dataTransfer.setData('text/uri-list', payload.uriList);
+		event.dataTransfer.setData('ResourceURLs', payload.resourceUrls);
+		event.dataTransfer.setData('CodeFiles', payload.codeFiles);
+		try {
+			// 跨子树面板拖拽时目标页看不到上面的 dragSession，只能靠这个私有类型认出「是自己人」
+			event.dataTransfer.setData(WISPKIT_DRAG_TYPE, '1');
+		} catch {
+			// 环境拒绝自定义类型时，同页拖动仍靠 dragSession 识别
+		}
+		// Chromium 只认单文件 DownloadURL：拖到桌面/资源管理器会落成真实文件
+		if (payload.downloadUrl) {
+			try {
+				event.dataTransfer.setData('DownloadURL', payload.downloadUrl);
+			} catch {
+				// 某些环境拒绝这个自定义类型，不影响 URI 列表
+			}
+		}
+		element.classList.add('is-dragging');
+		// 状态栏文案会占宽；`media/subtree.css` 里已保证工具栏按钮不被压缩、不会把
+		// 工具栏撑高（撑高会让拖拽源行整体位移，Chromium 会因此取消整次拖拽）。
+		setStatus(`正在拖动 ${rows.length} 个条目…（按住 Ctrl 放下 = 直接移动）`);
+	});
+	element.addEventListener('dragend', () => {
+		element.classList.remove('is-dragging');
+		dragSession = null;
+		setStatus('');
+	});
+
 	return element;
 }
 
@@ -463,6 +990,23 @@ function selectRow(row, event) {
 
 	selection = [row.path];
 	anchorPath = row.path;
+}
+
+/**
+ * 拖动一个**未选中**的行时把它变成唯一选中项。
+ *
+ * 这里刻意不重绘整棵树：dragstart 里替换掉拖拽源元素会让浏览器丢失拖拽图像，
+ * 所以只同步 DOM 上的 class 与右侧操作栏。
+ */
+function selectOnlyForDrag(path) {
+	selection = [path];
+	anchorPath = path;
+	for (const element of rowsElement?.querySelectorAll('.wispkit-subtree-row') ?? []) {
+		const selected = element.dataset.path === path;
+		element.classList.toggle('is-selected', selected);
+		element.setAttribute('aria-selected', selected ? 'true' : 'false');
+	}
+	renderActions();
 }
 
 function renderInto(container, path, depth) {
@@ -729,6 +1273,142 @@ function renderActions() {
 	}
 }
 
+/* ---------------------------------------------------------------- 右键菜单 */
+
+/**
+ * 右键菜单与右侧操作栏共用同一份 `config.commands`，所以**每个条目**都能
+ * 在这里找到右侧那些操作，并显示同样的图标。
+ *
+ * 与操作栏的唯一差别在 `folders` 类命令：右键一个文件时，新建 / 粘贴仍然
+ * 有意义（宿主的 createEntry / pasteInto 会落到该文件的父目录），所以这里
+ * 不为「选中的是文件」置灰 —— 否则右键菜单就比右侧少了整组操作。
+ */
+function isApplicableForContext(command) {
+	const shape = selectionShape();
+	if (shape.unknown) {
+		return false;
+	}
+	if (command.appliesTo === 'folders') {
+		return true;
+	}
+	return isApplicable(command);
+}
+
+function contextCommandItem(command) {
+	const enabled = isApplicableForContext(command);
+	let title = commandTitle(command);
+	if (enabled) {
+		if (command.id === 'wispkit.subtree.paste' && config.clipboard) {
+			title += `（${config.clipboard}）`;
+		}
+	} else {
+		title = `${command.label} 不可用：`
+			+ `${command.disabledReason || DEFAULT_DISABLED_REASON[command.appliesTo] || '当前选中状态不适用'}`;
+	}
+	return {
+		label: command.label,
+		icon: command.icon || 'action',
+		title,
+		disabled: !enabled,
+		run: () => runCommand(command),
+	};
+}
+
+function contextToolItems() {
+	return config.tools.map((tool, index) => ({
+		label: tool.label,
+		icon: 'terminal',
+		badge: tool.shell,
+		title: `${tool.command}（执行方式：${tool.shell}）`,
+		disabled: selection.length === 0,
+		run: () => post({ type: 'wispkit.subtree.tool', index, paths: [...selection] }),
+	}));
+}
+
+function buildContextMenuItems(row) {
+	const items = [];
+
+	if (row) {
+		if (row.isDirectory) {
+			const isExpanded = expanded.has(row.path);
+			items.push({
+				label: isExpanded ? '折叠' : '展开',
+				icon: isExpanded ? 'collapse-all' : 'expand-all',
+				title: row.path,
+				run: () => toggle(path => path === row.path, row.path),
+			});
+			items.push({
+				label: '展开一层',
+				icon: 'expand-all',
+				title: `展开 ${row.path} 的直接子文件夹`,
+				run: () => expandOneLevel(row.path),
+			});
+		} else {
+			items.push({
+				label: '打开',
+				icon: iconFor(row),
+				title: row.path,
+				run: () => post({ type: 'wispkit.subtree.open', path: row.path }),
+			});
+		}
+		items.push({ separator: true });
+	} else {
+		items.push({ label: '刷新', icon: 'refresh', run: refreshTree });
+		items.push({ label: '展开一层', icon: 'expand-all', title: '展开根目录的直接子文件夹', run: () => expandOneLevel(config.rootPath) });
+		items.push({ label: '全部折叠', icon: 'collapse-all', run: collapseAllTree });
+		items.push({ separator: true });
+	}
+
+	const buckets = new Map();
+	for (const command of config.commands) {
+		const bucket = buckets.get(command.group);
+		if (bucket) {
+			bucket.push(command);
+		} else {
+			buckets.set(command.group, [command]);
+		}
+	}
+	let firstGroup = true;
+	for (const group of GROUP_ORDER) {
+		const commands = buckets.get(group);
+		if (!commands || commands.length === 0) {
+			continue;
+		}
+		if (!firstGroup) {
+			items.push({ separator: true });
+		}
+		firstGroup = false;
+		for (const command of commands) {
+			items.push(contextCommandItem(command));
+		}
+	}
+
+	const tools = contextToolItems();
+	if (tools.length > 0) {
+		items.push({ separator: true });
+		items.push(...tools);
+	}
+
+	return items;
+}
+
+function openContextMenu(row, x, y) {
+	if (row && !isSelected(row.path)) {
+		// 与资源管理器一致：右键未选中项 = 先把它变成当前选中项
+		selection = [row.path];
+		anchorPath = row.path;
+		renderTree();
+		renderActions();
+	} else if (!row) {
+		// 右键空白处 = 操作根目录
+		selection = [];
+		anchorPath = null;
+		renderTree();
+		renderActions();
+	}
+	return contextMenu.open(buildContextMenuItems(row), x, y);
+}
+
 /**
  * 「展开一层」：对**选中的文件夹**生效；没选中（或选的是文件）时回退到根目录。
  *
@@ -769,19 +1449,26 @@ function expandOneLevel(targetPath) {
 	renderTree();
 }
 
-document.getElementById('wispkit-subtree-refresh')?.addEventListener('click', () => {
+function refreshTree() {
 	levels.clear();
 	expanded.clear();
 	pendingExpand.clear();
 	renderTree();
 	setStatus(READING);
 	requestLevel(config.rootPath);
-});
+}
 
-document.getElementById('wispkit-subtree-collapse-all')?.addEventListener('click', () => {
+function collapseAllTree() {
 	expanded.clear();
 	pendingExpand.clear();
 	renderTree();
+}
+
+document.getElementById('wispkit-subtree-refresh')?.addEventListener('click', refreshTree);
+document.getElementById('wispkit-subtree-collapse-all')?.addEventListener('click', collapseAllTree);
+
+document.getElementById('wispkit-subtree-dnd-help')?.addEventListener('click', () => {
+	setStatus('拖入：文件会问「复制 / 移动」，文本、HTML、图片等会问存储类型和名称；从系统资源管理器直接拖文件进来即可（不需要按 Shift）。树内拖动条目时按住 Ctrl 再拖 = 直接移动（不再询问）；左右两个子树面板之间互拖同样适用。拖出：指针拖到窗口外松手 = 复制 / 移动到光标下的资源管理器窗口（按住 Ctrl = 移动），找不到窗口时放入剪贴板。右键任意条目或空白处可打开与右侧操作栏相同的文件操作菜单（带图标）。');
 });
 
 /**
@@ -1032,6 +1719,102 @@ if (splitter && actionsElement) {
 	});
 }
 
+/* ---------------------------------------------------------------- 拖入：树区域接收 drop */
+
+const treeElement = document.getElementById('wispkit-subtree-tree');
+if (treeElement) {
+	treeElement.addEventListener('contextmenu', event => {
+		// 表头用于排序 / 调列宽，拥有自己的鼠标语义，不弹文件操作菜单
+		if (event.target?.closest?.('.wispkit-subtree-header')) {
+			return;
+		}
+		event.preventDefault();
+		const rowElement = event.target?.closest?.('.wispkit-subtree-row') ?? null;
+		const row = rowElement ? findRow(rowElement.dataset.path) : null;
+		openContextMenu(row, event.clientX, event.clientY);
+	});
+
+	treeElement.addEventListener('dragover', event => {
+		if (!event.dataTransfer) {
+			return;
+		}
+		event.preventDefault();
+		const moveHint = isMoveDrag(event);
+		// 内部拖拽按 Ctrl 时给「移动」光标与绿色高亮；外部拖入（Ctrl 在资源管理器里是复制）维持复制
+		event.dataTransfer.dropEffect = moveHint ? 'move' : 'copy';
+		const rowElement = event.target?.closest?.('.wispkit-subtree-row');
+		// 顺序要紧：highlightDropTarget 内部会先 clearDropHighlight（会摘掉 is-move-drop）
+		highlightDropTarget(rowElement ? findRow(rowElement.dataset.path) : null);
+		treeElement.classList.toggle('is-move-drop', moveHint);
+	});
+	treeElement.addEventListener('dragleave', event => {
+		if (!treeElement.contains(event.relatedTarget)) {
+			clearDropHighlight();
+		}
+	});
+	treeElement.addEventListener('drop', event => {
+		void handleDrop(event);
+	});
+
+	/*
+	 * 系统文件拖入：VS Code 的 webview pre script 会在 dragenter 时把 iframe 设为
+	 * pointer-events:none，把整次拖拽转交工作台（默认当成「拖文件到编辑器」），
+	 * 扩展原本收不到 drop —— 除非用户按 Shift。
+	 *
+	 * 那个 pre script 的监听器挂在 window 的**冒泡**阶段，而且它的 dragenter 会先看
+	 * defaultPrevented。这里在 document 的**捕获**阶段先 preventDefault + stopPropagation：
+	 * - dragenter 的 defaultPrevented 让 pre script 直接 return，不再通知宿主禁用 iframe；
+	 * - stopPropagation 让 dragover / drop 到不了 window 上的 pre script，也就不会发
+	 *   'drag' 消息让工作台再次把 iframe 的 pointer-events 关掉。
+	 * 事件被截在 document 捕获阶段，不会再走到树元素的监听器，所以高亮与 drop 处理
+	 * 在这里按同样的规则复刻一份。
+	 *
+	 * 只拦截「带 Files 的纯文件拖拽」；树内拖动、从 VS Code 资源管理器拖入的
+	 * uri-list 拖拽仍走原来的树监听器。
+	 */
+	const isExternalFileDrag = event => dragTypes(event?.dataTransfer).includes('files');
+	document.addEventListener('dragenter', event => {
+		if (!isExternalFileDrag(event)) {
+			return;
+		}
+		event.preventDefault();
+		event.stopPropagation();
+	}, true);
+	document.addEventListener('dragover', event => {
+		if (!isExternalFileDrag(event)) {
+			return;
+		}
+		event.preventDefault();
+		event.stopPropagation();
+		if (event.dataTransfer) {
+			event.dataTransfer.dropEffect = 'copy';
+		}
+		const rowElement = event.target?.closest?.('.wispkit-subtree-row');
+		highlightDropTarget(rowElement ? findRow(rowElement.dataset.path) : null);
+		treeElement.classList.toggle('is-move-drop', false);
+	}, true);
+	document.addEventListener('drop', event => {
+		if (!isExternalFileDrag(event)) {
+			return;
+		}
+		event.preventDefault();
+		event.stopPropagation();
+		void handleDrop(event);
+	}, true);
+
+	// 拖到窗口外松手时不一定有 row 级 dragend（元素可能已被移除），统一兜底清状态
+	window.addEventListener('dragend', () => {
+		dragSession = null;
+		clearDropHighlight();
+		for (const element of rowsElement?.querySelectorAll('.is-dragging') ?? []) {
+			element.classList.remove('is-dragging');
+		}
+		if (statusElement?.textContent?.startsWith('正在拖动')) {
+			setStatus('');
+		}
+	});
+}
+
 /** 供自动化验证读取：断言项不依赖人眼。 */
 Object.defineProperty(window, '__wispkitSelftest', {
 	value: {
@@ -1186,6 +1969,75 @@ Object.defineProperty(window, '__wispkitSelftest', {
 			};
 		},
 		expandedPaths: () => Array.from(expanded),
+
+		// —— 右键菜单 ——
+		contextMenu: () => ({
+			open: contextMenu.isOpen,
+			labels: contextMenu.labels,
+			icons: contextMenu.icons,
+			disabled: contextMenu.disabledLabels,
+		}),
+		openContextMenu: (path, x = 12, y = 12) => {
+			const row = path ? findRow(path) : null;
+			if (path && !row) {
+				return false;
+			}
+			return openContextMenu(row, x, y);
+		},
+		clickContextMenu: label => contextMenu.click(label),
+		closeContextMenu: () => contextMenu.close(),
+
+		// —— 拖拽 ——
+		toFileUrl,
+		dragPayloadFor: paths => dragPayloadForRows(paths.map(path => findRow(path)).filter(Boolean)),
+		dropTargetFor: path => dropTargetForRow(path ? findRow(path) : null),
+		/** 模拟一次 drop：不必真的构造 DataTransfer，方便单测消息形状。 */
+		simulateDrop: async (targetPath, options = {}) => {
+			lastMessage = null;
+			const row = findRow(targetPath);
+			const strings = options.strings ?? [];
+			const files = options.files ?? [];
+			const dataTransfer = {
+				types: options.types ?? strings.map(item => item.mime),
+				items: [
+					...strings.map(item => ({
+						kind: 'string',
+						type: item.mime,
+						getAsString: callback => callback(item.text),
+					})),
+					...files.map(item => {
+						const bytes = item.bytes ?? new Uint8Array(0);
+						return {
+							kind: 'file',
+							type: item.mime,
+							getAsFile: () => ({
+								name: item.name,
+								type: item.mime,
+								size: bytes.byteLength,
+								lastModified: 0,
+								arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+							}),
+						};
+					}),
+				],
+				files: [],
+			};
+			await handleDrop({
+				preventDefault() {},
+				stopPropagation() {},
+				shiftKey: Boolean(options.shiftKey),
+				ctrlKey: Boolean(options.ctrlKey),
+				metaKey: Boolean(options.metaKey),
+				target: row ? { closest: () => ({ dataset: { path: row.path } }) } : { closest: () => null },
+				dataTransfer,
+			});
+			return lastMessage;
+		},
+		/** 当前是否有本页发起的拖拽会话（dragstart → drop/dragend）。 */
+		dragSession: () => {
+			const session = activeDragSession();
+			return session ? { moveModifier: session.moveModifier } : null;
+		},
 
 		// —— 批量操作消息 ——
 		lastMessage: () => lastMessage,

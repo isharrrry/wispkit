@@ -591,6 +591,14 @@ describe('media/subtree.js', () => {
 		assert.ok(/box-sizing:\s*border-box/.test(cellRule), '单元格必须 border-box（双保险：padding 不得改变列宽）');
 	});
 
+	it('工具栏按钮不许被状态栏文字挤压换行（拖拽开始写状态会让拖拽源位移并被浏览器取消）', () => {
+		const css = fs.readFileSync(path.join(__dirname, '..', '..', 'media', 'subtree.css'), 'utf8');
+		const match = /\.wispkit-subtree-btn\s*\{([^}]*)\}/.exec(css);
+		assert.ok(match, 'CSS 里找不到 .wispkit-subtree-btn 规则');
+		assert.ok(/flex:\s*0 0 auto/.test(match[1]), '按钮必须禁止收缩：被压缩时 CJK 文案会折行，把工具栏撑高');
+		assert.ok(/white-space:\s*nowrap/.test(match[1]), '按钮文字必须不换行');
+	});
+
 	it('缩进占位元素是名称列的首个子元素，其余列不得有它', () => {
 		const { api, doc } = setupPage();
 		api.applyLevel(SUB, LEVELS[SUB]);
