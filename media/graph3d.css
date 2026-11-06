@@ -1,0 +1,408 @@
+:root {
+	--wispkit-3d-border: var(--vscode-panel-border, rgba(128, 128, 128, 0.28));
+	--wispkit-3d-muted: var(--vscode-descriptionForeground, rgba(160, 160, 160, 0.9));
+	--wispkit-3d-toolbar-bg: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+	--wispkit-3d-pane-bg: var(--vscode-editor-background);
+}
+
+html,
+body {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+}
+
+body {
+	color: var(--vscode-editor-foreground);
+	background: var(--wispkit-3d-pane-bg);
+	font-family: var(--vscode-font-family, "Segoe UI", "Microsoft YaHei", sans-serif);
+	font-size: var(--vscode-font-size, 13px);
+}
+
+.wispkit-3d-app {
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+	min-height: 0;
+}
+
+/* ── 工具栏 ─────────────────────────────────────────────────────────── */
+
+.wispkit-3d-toolbar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px 10px;
+	padding: 6px 10px;
+	border-bottom: 1px solid var(--wispkit-3d-border);
+	background: var(--wispkit-3d-toolbar-bg);
+	box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+	z-index: 2;
+}
+
+.wispkit-3d-toolbar-group {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.wispkit-3d-select-group {
+	gap: 10px;
+	flex: 1 1 560px;
+	min-width: 260px;
+}
+
+.wispkit-3d-field {
+	display: inline-flex;
+	align-items: center;
+	flex: 0 1 auto;
+	gap: 5px;
+	min-width: 0;
+}
+
+.wispkit-3d-field-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	color: var(--wispkit-3d-muted);
+	white-space: nowrap;
+	font-size: 12px;
+}
+
+.wispkit-3d-select {
+	min-width: 150px;
+	max-width: 360px;
+	flex: 1 1 180px;
+	padding: 3px 6px;
+	color: var(--vscode-dropdown-foreground, var(--vscode-editor-foreground));
+	background: var(--vscode-dropdown-background, var(--vscode-input-background));
+	border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border, transparent));
+	border-radius: 2px;
+	font: inherit;
+	font-size: 12px;
+}
+
+.wispkit-3d-select:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.wispkit-3d-toolbar-sep {
+	width: 1px;
+	height: 20px;
+	background: var(--wispkit-3d-border);
+	margin: 0 2px;
+}
+
+.wispkit-3d-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 4px 9px;
+	color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+	background: var(--vscode-button-secondaryBackground, transparent);
+	border: 1px solid var(--vscode-button-border, var(--wispkit-3d-border));
+	border-radius: 3px;
+	font: inherit;
+	font-size: 12px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.wispkit-3d-btn:hover:not(:disabled) {
+	background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.16));
+}
+
+.wispkit-3d-btn:active:not(:disabled) {
+	transform: translateY(1px);
+}
+
+.wispkit-3d-btn:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.wispkit-3d-btn[data-active="true"] {
+	color: var(--vscode-button-foreground, #fff);
+	background: var(--vscode-button-background, #0e639c);
+	border-color: var(--vscode-button-background, #0e639c);
+}
+
+.wispkit-3d-btn-icon {
+	width: 14px;
+	height: 14px;
+	flex: 0 0 auto;
+}
+
+.wispkit-3d-btn-icon use,
+.wispkit-3d-btn-icon path {
+	pointer-events: none;
+}
+
+.wispkit-3d-algorithm-field .wispkit-3d-select {
+	min-width: 132px;
+	max-width: 210px;
+	flex: 0 0 auto;
+}
+
+.wispkit-3d-spacing-field {
+	gap: 6px;
+}
+
+.wispkit-3d-range {
+	width: 120px;
+	accent-color: var(--vscode-button-background, #0e639c);
+}
+
+.wispkit-3d-check-field {
+	cursor: pointer;
+	user-select: none;
+}
+
+.wispkit-3d-checkbox {
+	width: 13px;
+	height: 13px;
+	margin: 0;
+	accent-color: var(--vscode-button-background, #0e639c);
+	cursor: pointer;
+}
+
+.wispkit-3d-output {
+	min-width: 42px;
+	color: var(--wispkit-3d-muted);
+	font-variant-numeric: tabular-nums;
+	font-size: 12px;
+}
+
+.wispkit-3d-toolbar-spacer {
+	flex: 1 1 auto;
+}
+
+.wispkit-3d-status {
+	color: var(--wispkit-3d-muted);
+	font-size: 12px;
+	max-width: 46vw;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.wispkit-3d-status[data-kind="error"] {
+	color: var(--vscode-errorForeground, #f48771);
+}
+
+/* ── 分栏 ───────────────────────────────────────────────────────────── */
+
+.wispkit-3d-panes {
+	position: relative;
+	display: flex;
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.wispkit-3d-pane {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 0;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	background: var(--wispkit-3d-pane-bg);
+}
+
+.wispkit-3d-pane[hidden] {
+	display: none;
+}
+
+.wispkit-3d-pane + .wispkit-3d-pane {
+	border-left: 1px solid transparent;
+}
+
+.wispkit-3d-pane-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 5px 10px;
+	border-bottom: 1px solid var(--wispkit-3d-border);
+	background: var(--vscode-sideBar-background, var(--wispkit-3d-toolbar-bg));
+	font-size: 12px;
+	min-height: 24px;
+}
+
+.wispkit-3d-pane-title {
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.wispkit-3d-pane-stats {
+	color: var(--wispkit-3d-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-variant-numeric: tabular-nums;
+}
+
+.wispkit-3d-pane-hint {
+	position: absolute;
+	right: 10px;
+	bottom: 8px;
+	color: var(--wispkit-3d-muted);
+	background: var(--vscode-editorWidget-background, rgba(20, 20, 20, 0.55));
+	border-radius: 3px;
+	padding: 2px 7px;
+	font-size: 11px;
+	opacity: 0.75;
+	pointer-events: none;
+	user-select: none;
+}
+
+.wispkit-3d-stage {
+	position: relative;
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: hidden;
+	background:
+		radial-gradient(circle at 50% 42%, rgba(90, 130, 200, 0.16), transparent 62%),
+		radial-gradient(circle at 50% 100%, rgba(140, 110, 220, 0.09), transparent 70%);
+	cursor: grab;
+}
+
+.wispkit-3d-stage:active {
+	cursor: grabbing;
+}
+
+.wispkit-3d-stage canvas {
+	position: absolute;
+	inset: 0;
+	width: 100% !important;
+	height: 100% !important;
+	display: block;
+}
+
+body.vscode-light .wispkit-3d-stage {
+	background:
+		radial-gradient(circle at 50% 42%, rgba(56, 109, 190, 0.14), transparent 62%),
+		radial-gradient(circle at 50% 100%, rgba(120, 90, 200, 0.08), transparent 70%);
+}
+
+.wispkit-3d-splitter {
+	position: relative;
+	flex: 0 0 7px;
+	width: 7px;
+	cursor: col-resize;
+	background: var(--wispkit-3d-toolbar-bg);
+	border-left: 1px solid var(--wispkit-3d-border);
+	border-right: 1px solid var(--wispkit-3d-border);
+	z-index: 3;
+	touch-action: none;
+}
+
+.wispkit-3d-splitter::after {
+	content: "";
+	position: absolute;
+	left: 2px;
+	top: 50%;
+	width: 2px;
+	height: 34px;
+	margin-top: -17px;
+	border-radius: 1px;
+	background: var(--wispkit-3d-muted);
+	opacity: 0.45;
+}
+
+.wispkit-3d-splitter:hover,
+.wispkit-3d-splitter[data-dragging="true"] {
+	background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.22));
+}
+
+.wispkit-3d-splitter[hidden] {
+	display: none;
+}
+
+/* ── 覆盖层 ─────────────────────────────────────────────────────────── */
+
+.wispkit-3d-overlay {
+	position: absolute;
+	inset: 32px 0 0 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 28px;
+	text-align: center;
+	color: var(--wispkit-3d-muted);
+	font-size: 13px;
+	line-height: 1.7;
+	white-space: pre-wrap;
+	pointer-events: none;
+	user-select: none;
+}
+
+.wispkit-3d-overlay[hidden] {
+	display: none;
+}
+
+.wispkit-3d-error {
+	color: var(--vscode-errorForeground, #f48771);
+	pointer-events: auto;
+}
+
+/* 悬停节点气泡时的注释 tooltip；位置由 graph3d.js 按鼠标坐标计算。 */
+.wispkit-3d-tooltip {
+	position: absolute;
+	z-index: 8;
+	left: 0;
+	top: 0;
+	max-width: 340px;
+	padding: 7px 10px;
+	border: 1px solid var(--wispkit-3d-border);
+	border-radius: 4px;
+	background: var(--vscode-editorHoverWidget-background, rgba(30, 30, 30, 0.96));
+	color: var(--vscode-editorHoverWidget-foreground, var(--vscode-editor-foreground));
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.32);
+	font-size: 12px;
+	line-height: 1.55;
+	pointer-events: none;
+	user-select: none;
+	overflow-wrap: anywhere;
+}
+
+.wispkit-3d-tooltip[hidden] {
+	display: none;
+}
+
+.wispkit-3d-tooltip-title {
+	font-weight: 600;
+	margin-bottom: 2px;
+	white-space: pre-wrap;
+}
+
+.wispkit-3d-tooltip-body {
+	color: var(--vscode-editorHoverWidget-foreground, var(--wispkit-3d-muted));
+	white-space: pre-wrap;
+}
+
+.wispkit-3d-sprite {
+	position: absolute;
+	width: 0;
+	height: 0;
+	overflow: hidden;
+}
+
+@media (max-width: 720px) {
+	.wispkit-3d-select-group {
+		flex-basis: 100%;
+	}
+	.wispkit-3d-status {
+		max-width: 100%;
+		flex-basis: 100%;
+	}
+	.wispkit-3d-spacing-field .wispkit-3d-range {
+		width: 90px;
+	}
+}
