@@ -65,6 +65,8 @@ dotnet build -c Release
 
 | To learn about | Read |
 |---|---|
+| What is promised, and how each promise is judged | [Requirements and acceptance criteria](docs/requirements.md) |
+| Quality objectives, test levels and their blind spots, the merge gate, defect grading | [Test and quality constraints](docs/test-and-quality.md) |
 | Layers, module responsibilities, one complete data flow | [Architecture](docs/architecture.md) |
 | Interaction, gestures and message contracts of the seven views, custom resource management, the subtree panel and 3D graph browsing | [Views and interaction](docs/views-and-interaction.md) |
 | Field-level reference for the 14 settings, `Wispkit.json`, tool placeholders | [Configuration](docs/configuration.md) |
@@ -74,6 +76,21 @@ dotnet build -c Release
 
 **Documentation rule**: every topic under `docs/` exists in English, Chinese and Spanish — **any edit updates all three in the same change** (variants are faithful translations, not summaries). The single exception is `docs/development-notes.zh-CN.md`, an internal engineering log kept in Chinese only. Unverified items are labelled explicitly in [Known limitations](docs/limitations.md) instead of being presented as guarantees.
 
+## Maintaining this repository
+
+**[Requirements and acceptance criteria](docs/requirements.md) is the single authoritative statement of what this extension promises and how each promise is judged.** Where any other document disagrees with it, the requirements page wins and the other document is defective.
+
+| If you change | You must also update | Because |
+|---|---|---|
+| Any user-visible behaviour | The matching `R` / `AC` entry in [Requirements](docs/requirements.md) | Requirements precede implementation; a document that trails behaviour is a defect, not a backlog item |
+| Any view's interaction or gesture | [Views and interaction](docs/views-and-interaction.md) and that view's `demo/R<n>-*/` fixture | A criterion is only worth writing if the next reader can replay it |
+| Any setting | [Configuration](docs/configuration.md) and every `package.nls*.json` bundle | A setting key is an external contract; renaming one silently breaks users' configurations |
+| A test count, a VSIX size or any measured result | [Test and quality constraints](docs/test-and-quality.md) **and** [Build and verify](docs/build-and-verify.md) | A number must come from a command that was actually run, never from an estimate; the gate and the figure are recorded in two files that have to move together |
+| Any document | The Chinese and Spanish variants, **in the same change** | A single-language document is a defect in its own right |
+| A new view or capability | An `R` number allocated in [Requirements](docs/requirements.md) **first**, then the implementation | The number is the requirement's identity; allocating it afterwards makes the fixture mapping retroactive |
+
+The topic table above and the one in the [documentation index](docs/index.md) must be revised together: the index may break a topic into finer-grained rows, but no topic may appear in one table and be missing from the other.
+
 ## Build and measured environment
 
 | Item | Value |
@@ -81,10 +98,10 @@ dotnet build -c Release
 | Node / npm | **^22.22.2 / ^24.15.0 / >=26** (what jsdom 30 accepts); CI pins 22.22.2 and runs `npm ci` → lint → compile → test on Windows |
 | TypeScript | 5.7 |
 | esbuild | 0.24 (8 webview bundles; `graph3d` is minified separately) |
-| Tests | mocha + jsdom, **952 passing**, 57 test files |
+| Tests | mocha + jsdom, **1059 passing**, 62 test files |
 | 3D bundle | `media/dist/graph3d.js`, about 603 KB (three.js included, minified) |
 | Lint | eslint 9, **0 errors** |
-| VSIX | 154 entries / ~1.57 MB (docs, the three READMEs and the screenshots included) |
+| VSIX | 172 entries / ~1.71 MB (docs, the three READMEs and the screenshots included) |
 | Measured VS Code | **1.137.0** (Windows) |
 
 ## Screenshots

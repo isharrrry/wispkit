@@ -1,7 +1,7 @@
 ---
 type: Guide
 title: 已知限制与未验证项
-description: Wispkit 做不到的事、每条限制的成因，以及从未在真机验证过的内容
+description: Wispkit 做不到的事、每条限制的成因（含 3D 图种覆盖、ASCII 树边界与大图上限、资源树的磁盘 / 并发 / 多根边界），以及从未在真机验证过的内容
 tags: [limitations, unverified, honesty]
 status: stable
 generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
@@ -34,12 +34,13 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
 - **成因**：浏览 HTML 本身就需要页面自带脚本能跑；收紧 CSP 会让大多数真实页面失效。风险等级与内置 Simple Browser 相当。
 - **规避**：**不要用 HTML 视图打开不可信来源的 HTML。**
 
-### 4. Markdown / 图片 / XAML 会接管默认打开方式
+### 4. Markdown / Mermaid / 图片 / 视频 / HTML / XAML 会接管默认打开方式
 
-- **现象**：装完扩展后双击 `.md`、图片与 `.xaml`，进的是 Wispkit 视图而不是内置编辑器。
-- **成因**：这三个视图在 `package.json` 里是 `priority: default`（要"双击即进"就必须这样）。
+- **现象**：装完扩展后双击 `.md`、`.mmd` / `.mermaid`、图片、视频、`.html` 与 `.xaml`，进的是 Wispkit 视图而不是内置编辑器 / 浏览器。
+- **成因**：这六个视图在 `package.json` 里是 `priority: default`（要"双击即进"就必须这样；HTML 也必须默认接管，否则内置编辑器里点链接没有任何反应）。
 - **规避**：右键文件 → *Reopen Editor With…* 选内置编辑器；或用 `workbench.editorAssociations` 固定。
-- **注意**：**HTML 与只读文本是 `option` 优先级**，默认不抢打开方式，需要时显式切换。
+- **注意**：**只有只读文本是 `option` 优先级**，默认不抢打开方式，由 `workbench.editorAssociations` 驱动。
+- **升级后**：安装新版本后必须 **Reload Window** 才生效 —— 扩展宿主只在窗口加载时启动，不重载的话旧版本会一直运行。重载之后，**已经打开的标签页仍保留原来的编辑器类型**：旧版本用内置预览打开的 SVG，升级后要关掉重新打开（或右键 → *Reopen Editor With…* → **Wispkit Image**）才会进新视图。
 
 ### 5. mermaid 默认缩放依赖内置扩展
 
@@ -67,7 +68,7 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
 
 ### 9. 只读模式不作用于 Wispkit 自己的浏览视图
 
-- **现象**：Markdown / HTML / XAML / 图片在只读模式下仍按原样打开。
+- **现象**：Markdown / HTML / XAML / 图片 / 视频在只读模式下仍按原样打开。
 - **成因**：它们本来就是浏览视图（不写文件），而**截断 Markdown 会渲染出残缺结果**。
 - **例外**：XAML 视图的源码区仍可编辑 —— 这一条将来会随只读模式一起收紧。
 
@@ -99,6 +100,109 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
 - **成因**：内置 `filesExplorer.rename` / `explorer.newFile` / `filesExplorer.paste` 不接受外部 URI 参数，无法作用于面板里选中的条目，所以剪切/复制/粘贴/重命名/删除/新建/比较全部自研（`src/subtree/fileActions.ts`）。
 - **含义**：这些操作的行为细节（冲突提示、回收站、递归复制）由 Wispkit 决定，不保证与资源管理器逐字一致。
 
+### 15. 3D 可视化只解析拓扑，不还原 Mermaid 原图
+
+- **现象**：3D 面板里的节点、边和分组来自 Wispkit 自己的轻量解析器，不是 Mermaid 渲染出的 SVG；主题、颜色、精确线型、`classDef`、`style`、`click`、`accTitle` / `accDescr` 都不会体现在 3D 里。条目注释会识别并挂到节点上（ASCII 树的行尾 / 整行注释、Mermaid 的 `%%` 注释），但只以悬停 tooltip 的纯文本呈现，不还原原图里的注释位置与排版。
+- **支持的图种**：`flowchart` / `graph`（含 `-elk`）、`sequenceDiagram`、`classDiagram`、`stateDiagram` / `stateDiagram-v2`、`erDiagram`、`mindmap`、`gitGraph`、`journey`、`gantt`、`timeline`、`pie`、`quadrantChart`。这些图种按语义把节点 / 边 / 分组归一化后再布局。
+- **未支持图种**：`requirementDiagram`、`C4Context`、`sankey-beta`、`block-beta`、`architecture-beta`、`packet-beta`、`xychart-beta` 以及无法识别的 Mermaid 内容，使用**通用兜底**：按阅读顺序把内容行串成一条链，并在统计旁标注「使用通用兜底解析（按行串成链）」；语义（层级、流量、坐标）会丢失。
+- **语法错误**：解析器尽量保留已识别的节点 / 边，并在 `note` 里说明；不会让整个面板崩溃。
+- **规避**：需要与 Mermaid 原图一致的样式时，用 Markdown 视图本身看；3D 只用于看结构。
+
+### 16. 裸 ASCII 树的识别是保守的
+
+- **支持**：围栏语言为 `""` / `text` / `txt` / `plain` / `plaintext` / `ascii` / `tree` / `log` / `none` 时的树；以及正文里没有围栏、但至少有两行**带标签连接线**的树。
+- **连接线**：Unicode `├──` / `└──` / `│` 等（1–8 个横线），或 ASCII `|--` / `+--` / `` `-- `` / `\--`（2–8 个横线）。只有一行的连接线不算树；纯框线 / 表格边框（`+---+`、`┌── x ──┐`）会被排除。
+- **正文裸树边界**：正文行不能是 Markdown 结构（ATX 标题、引用、列表、表格、HTML、分隔线、链接引用定义）；空行结束一个块；缩进但没有连接线的行并进上一个节点标签（折行）；顶格的第二棵树根只有在下一行又是连接线时才会被收进同一块；缩进深度上限 30 层。
+- **不识别**：只用空格缩进、没有任何连接线的层级；只有一个连接线的片段；写在 ` ```js ` 等非 ASCII 围栏里的树；Mermaid 写在非 `mermaid` 围栏里的内容。
+- **截断**：单个 ASCII 树最多 600 个节点，超过后停止解析（不会额外提示，见下一条）。
+
+### 17. 3D 图元素与节点上限、超大图性能
+
+| 上限 | 值 | 行为 |
+|---|---:|---|
+| 每篇 Markdown 的图元素 | **200** | 超出的元素直接不收集（静默截断） |
+| 单个 Mermaid 图节点 | **600** | 截断为前 600 个，统计旁给出「节点数超过 600…」 |
+| 单个 ASCII 树节点 | **600** | 到达上限后停止添加节点（ASCII 解析没有截断提示） |
+
+- **布局成本**：树 / 分层布局接近线性，但类图 / ER 等有环图会走**确定性力导向**，距离计算是 O(n²)（最多 170 次迭代 + 36 轮重叠消除）；每个节点生成一张 Canvas 纹理 Sprite，每条边生成 TubeGeometry 与箭头锥体。数百节点时布局时间与显存开销都会明显上升。
+- **实测边界**：单测覆盖到 600 节点截断与布局确定性；真机 3D 端到端样本只有 3–8 个节点的图（见[构建与验证](build-and-verify.zh-CN.md#3d-bundle-与端到端探针)），**没有在 200 元素 / 600 节点的真实文档上做过压力测试**。
+- **规避**：超大文档先在 Markdown 里拆成多个小图再分别看；3D 面板里可以调大间隔减少文字重叠，但不会减少节点数。
+
+### 18. 3D 场景需要 WebGL
+
+- **现象**：宿主 / 显卡驱动禁用 WebGL 时，3D 场景无法创建，面板显示「无法创建 WebGL 上下文：…」错误层。
+- **成因**：three.js 的 `WebGLRenderer` 依赖真实 WebGL 上下文；没有 2D 或 SVG 降级路径。
+- **规避**：启用硬件加速或换一台支持 WebGL 的机器；只看结构时用 Markdown 视图里的 Mermaid / ASCII 树。
+
+### 19. 虚拟组不对应磁盘
+
+- **现象**：虚拟组（`group`）在树里看起来像文件夹，但单击提示「虚拟分组不对应真实文件夹，不能浏览。」；它下面可以挂文件夹或子组。
+- **成因**：`group` 节点只有 `id` / `name` / `children`，没有 `path`（`src/resourceTree/model.ts`）。它只是树里的命名与归类容器。
+- **含义**：重命名 / 移动 / 删除虚拟组只改 JSON；删除确认框明确写「不会删除磁盘上的任何文件」。需要真实目录时请用「添加文件夹」。
+
+### 20. 工作区外绝对路径换机 / 换工作区后失效
+
+- **现象**：工作区外的文件夹以 POSIX 风格绝对路径存进 JSON（如 `D:/shared/docs`）。换一台机器、改盘符或移动目录后，这些行显示 `⚠ 文件夹不存在`，点击提示路径不存在。
+- **成因**：`paths.ts` 只对**工作区内**的路径使用 `${workspaceFolder}` 占位符；工作区外没有可移植的锚点，只能存绝对路径。
+- **边界**：`${workspaceFolder}` 始终指**第一个**工作区；`${workspaceFolder:名称}` / `${workspaceFolder:序号}` 在对应根不存在时解析失败（`⚠ 路径无法解析`），不会静默指向别处。没有占位符的相对路径按第一个工作区解析。
+- **规避**：工作区内的目录尽量让扩展自动写成占位符；跨机器共享的树请把目录放进工作区，或导入后批量改路径。
+
+### 21. 外部并发编辑与覆盖风险
+
+- **现象**：在 VS Code 里直接改 `resource-tree.json` 后，视图不会自动变化；如果在外部编辑器里改完还没保存，而扩展此时执行了一次增删改移，扩展会用自己的内存树整体覆盖文件。
+- **成因**：没有 `FileSystemWatcher`；每次修改都以内存树为准整体序列化。写入用「同目录临时文件 + rename」保证**不会写出半截文件**，但不做合并、也没有跨进程锁。
+- **“最后写入者获胜”真机证据**（2026-10-26，VS Code 1.137.0，Windows 11；探针 17/17 通过，见 `.selftest/e2e-resource-tree-concurrency/`）：
+  - **外部未保存缓冲区 + 扩展写入 → 外部保存**（真实 VS Code 文本编辑器缓冲区）：扩展的新建先落盘，缓冲区保持未保存。保存缓冲区时 VS Code 报 `Failed to save ... The content of the file is newer`；点通知里的 **Overwrite** 后，外部缓冲区覆盖文件。刷新后树里只剩外部版本，扩展刚写入的内容**丢失**。这个方向无法靠写前检查阻止——丢失发生在外部编辑器之后保存的那一刻。
+  - **扩展写入 → 外部覆盖保存 → 刷新**：刷新读到外部版本，扩展上一次的内存状态被替换（读的时候外部文件获胜）。
+  - **直接调用 `storage.writeStore`**：完全没有冲突检测，外部已保存的树被传入的 store 原样覆盖；下面的保护只存在于 `ResourceTreeProvider.commit`。
+- **低成本加固（已实现）**：每次写入前 `commit` 重新读一次文件，并与扩展最后一次加载 / 写入的文本做**规范化比较**（`storageCore.ts` 的 `classifyExternalChange`；仅缩进 / BOM 差异不算冲突）。发现 `modified` / `created` / `deleted` / 非法 JSON 时弹**非模态警告通知**，带 **覆盖外部修改** / **取消** 两个按钮：
+  - **取消**（或直接关掉通知）：不写盘，内存树与外部文件都保持不变。
+  - **覆盖外部修改**：继续写入——外部已保存的改动仍然会丢失，这是用户明确选择的结果，不是合并。
+- **剩余边界**：检查是「写前读一次」（TOCTOU），检查与 rename 之间落地的外部保存仍可能被覆盖；仍然没有文件监听、没有合并、没有跨进程锁；第一条里的「外部未保存」方向依旧无法阻止。`writeStore` / 导出等直接写入路径不走这个检查。
+- **非法 JSON**：外部保存非法 JSON 后点刷新，扩展保留当前树、不覆盖文件、不崩溃；通知明确写「当前树保持不变，文件不会被覆盖」。之后再做增删改移会被当作外部修改，同样需要确认。
+- **两次写入之间强杀**：写完第 1 次、在第 2 次之前强杀扩展宿主，文件字节完全不变（md5 相同）、**没有 `.tmp-*` 残留**；宿主自动重启后树里仍是第 1 次写入的内容。**写入过程中**（临时文件写 / rename 之间）的强杀窗口没有抓到（窗口极短；`.tmp-*` 残留见第 23 条）。
+- **规避**：外部编辑前后点「刷新」；文件在外部打开时不要在视图里做增删改移；出现警告时先比较再决定是否覆盖；多人共享同一 JSON 时避免同时写。
+
+### 22. 符号链接、无权限与多根工作区边界
+
+- **符号链接**：文件夹状态用 `workspace.fs.stat` 异步检查，**跟随链接**（2026-10-26 在 Windows 11 + VS Code 1.137.0 真机验证，探针与截图位于 `.selftest/e2e-resource-tree-symlink/`）。链接指向目录按目录处理（`SymbolicLink | Directory`）；指向文件的链接按文件处理，文件夹节点显示 `⚠ 不是文件夹`；**断链**的 stat 会成功返回只有 `SymbolicLink` 位的项（目标不存在），现在独立显示 `⚠ 链接已断开`、tooltip「⚠ 链接目标不存在，当前不可打开」，点击提示「链接已断开（目标不存在）：路径」，不再误报成「不是文件夹」（修复前正是这条误导文案）。树里保存的是链接本身的路径，不解析到真实目标；恢复链接目标后点「刷新」即可恢复为目录 / 文件状态。
+- **无权限**：在本地 NTFS 上，即使目录 ACL 拒绝当前用户「读取」，`workspace.fs.stat` 仍能读到属性并返回目录 —— 资源树把它当普通文件夹显示，**不会与「不存在」混淆，但也不会提前警告**。真正读取目录内容时才失败，子树面板显示「无法读取：…」（普通用户令牌）。本次真机环境以 Administrator 运行且令牌启用了 `SeBackupPrivilege`，目录枚举也被放行，因此 EACCES 路径在本机无法复现（已如实记录，见 `priv-check.txt`）。如果某个文件系统 provider 在 stat 阶段抛 `NoPermissions`，当前实现仍统一显示 `⚠ 文件夹不存在`：**stat 层的「无权限 / 不存在」仍不可区分**，打开子树或读写存储文件时才给出具体错误。
+- **多根工作区**（2026-10-26 在 Windows 11 + VS Code 1.137.0 真机验证，探针位于 `.selftest/e2e-resource-tree-multiroot/`）：存储默认落在**第一个**根；`${workspaceFolder:名称}` / `${workspaceFolder:序号}` 可指向其他根；没有专门的「跨根移动」语义（移动只改 JSON 结构，不移动磁盘目录）。`${workspaceFolder}` 跟随第一个根，名称 / 序号占位符可解析到第二个根，名称或序号不存在时显示「⚠ 路径无法解析」（tooltip 显示原始占位符，点击时给出警告）。从资源管理器右键添加第二个根的文件夹会保存为 `${workspaceFolder:名称}` 占位符，不会写成绝对路径。移除第一个根后，VS Code 会重启扩展宿主（平台行为，不是崩溃）；默认存储切换到新的第一个根，旧文件原样保留，`${workspaceFolder}` 改为指向新首根（已有节点可能变成「⚠ 文件夹不存在」），序号占位符失效，树继续正常工作。切换时没有单独的弹窗提示 —— 视图标题会显示存储路径，工作区有多个根时带根名前缀。
+- **从资源管理器添加**：`explorer/context` 入口支持多选。多选时直接以文件夹名作为显示名批量添加，不再逐个弹名称输入框；文件等非目录条目跳过并汇总提示；同一批次内相同真实路径只加一次，跨批次仍允许重名/重复路径。拖拽多选同样逐个添加。
+
+### 23. 资源树的规模上限与文件夹状态缓存
+
+- **上限**：总节点 2000、单层子项 200、深度 12、名称 120 字符。超出的节点在读取时截断并给出警告；交互新建达到上限时只提示「已达到节点数量或层级上限」。
+- **文件夹状态**：状态改为用 `workspace.fs.stat` 异步检查并缓存为 `directory` / `file` / `missing` / `broken-link`（TTL 30s、最多 2000 条、并发 8）。reload / 刷新 / 增删改移 / `wispkit.resourceTree.file` 变更 / 工作区文件夹变化时重建或裁剪缓存；`getTreeItem` 只读缓存，这条路径上**不再有同步 `fs.statSync`**。缓存未命中时先按「未知」渲染（普通文件夹图标、tooltip「正在检查…」）并异步补取；过期条目先显示上次值，后台检查返回后再刷新。没有文件监听，外部变化最多要等 TTL（30s）或手动刷新才显示。
+- **开销**：本地基准（2000 节点 / 1000 子目录，探针：`.selftest/resource-tree-cache/bench.mjs`）：旧路径 1000 次同步 stat 约 **23–26ms** 阻塞扩展宿主线程；改为 8 路异步预取后，2000 次 `getTreeItem` 等价查询约 **2.8–3.8ms**，同步 stat 调用 **0** 次。真机 VS Code 上同一棵 2000 节点 / 1000 子目录树：展开一个 199 项分组约 **55ms**；手动刷新（等待全部 1989 个 folder stat）约 **0.7–0.9s**，这段等待是异步的，不阻塞界面。网络盘行为仍未测（见未验证第 14 条）。
+- **临时文件**：写入过程中进程被强杀可能留下同目录 `.tmp-*` 文件；不影响旧文件，但不会自动清理。
+
+### 24. `.mmd` 的 2D 预览依赖 VS Code 内置 Mermaid 预览扩展
+
+- **现象**：在提供 Mermaid 预览脚本的 VS Code（1.104+ 内置 `mermaid-markdown-features`）里，`.mmd` 直接渲染成图；没有该扩展时退化为源码模式。
+- **成因**：Wispkit 不打包自己的 Mermaid 渲染器，走的是与 Markdown 视图相同的 `markdown.previewScripts` 贡献管线。
+- **规避**：升级 VS Code 或安装带 Mermaid 预览的扩展；3D 浏览不受影响（走自研拓扑解析器）。
+
+### 25. 一个 `.mmd` 文件只按一张图处理
+
+- **现象**：文件里的多个 Mermaid 图（如果用户用空行或 `---` 拼接）不会拆成多个图元素，整份源码交给一次解析。
+- **成因**：`.mmd` 的通行约定是一个文件一张图；Markdown 才有多图元素的概念。
+- **规避**：需要多图比拼时把它们放进 Markdown 围栏，或用左右对比的两份文件。
+
+### 26. `.mmd` 的 3D 与 Markdown 共用拓扑解析边界
+
+- **现象**：`.mmd` 在 3D 里仍是 12 类图种 + 通用兜底、单图最多 600 节点、未知图种按行串链。
+- **成因**：`wispkit.graph3d` 对两种输入使用同一个 `src/graph3d/mermaid.ts`，没有单独的 Mermaid 文件解析路径。
+- **规避**：与第 15、17 条相同。
+
+### 27. HEIF / HEIC 与部分视频容器不能内嵌解码
+
+- **现象**：HEIC / HEIF、TIFF、JXL 图片在图片视图里显示「无法显示」；MKV / AVI / WMV / FLV / RMVB 等视频多数只有「系统播放器打开」兜底。
+- **成因**：解码完全交给 VS Code 的 Chromium 内核。HEIF 需要 libheif（WASM 版约数 MB）；TIFF / JXL 与多数视频容器在 Chromium 里没有内置解码器。按「需要加大依赖就不实现」的约定，Wispkit 不打包这些解码器，也不调用 Windows 专有编解码器。
+- **例外**：MP4（H.264 / AAC）、WebM（VP8 / VP9）等内核自带编解码器的格式可以真正播放；`.mkv` 等扩展名只代表「由 Wispkit 接住」，实际能否播放取决于文件真实容器与编码。
+- **规避**：用系统播放器打开，或先转码成 MP4（H.264 / AAC）。
+- **验证**：VS Code 1.137.0 / Electron 42 真机：WebP、AVIF、SVG 解码成功；HEIC 兜底面板出现；MP4 播放 `currentTime` 前进；损坏 MKV 显示错误码 4 兜底（`.selftest/e2e-media/probe-media.mjs`，17/17）。
+
 ## 二、未验证项
 
 以下内容**没有在真实 VS Code 里验证过**。不代表不能工作，只是没有证据。
@@ -113,8 +217,22 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
 | 6 | **只读模式标签替换的时序** | "先原生打开、再替换" 在慢磁盘/大文件/`preview` 标签上的表现 | 在 `workbench.editor.enablePreview` 开/关两种状态下各试一次 |
 | 7 | **超大目录的懒加载表现** | 单层上万条目、深层嵌套、网络路径下的读取与渲染 | 在 node_modules 或大目录上打开子树面板 |
 | 8 | **图标主题的语言桥覆盖率** | 349 条「扩展名 → 语言 id」来自各扩展的 `contributes.languages`，未与 VS Code 内置完整语言表逐条比对；未覆盖的扩展名会回退到 `file` 图标 | 换几个主题、看不同扩展名文件是否都正确 |
+| 9 | **3D 超大图性能** | 单测只覆盖 600 节点截断与布局确定性；力导向是 O(n²)，每个节点一张 Canvas 纹理、每条边一节 TubeGeometry，真机样本只有 3–8 个节点 | 拿 200 个图元素 / 单图 600 节点的 Markdown，记录打开、布局、旋转时的耗时与内存 |
+| 10 | **非 ASCII 树 / flowchart / sequence 图种在真机 3D 中的视觉正确性** | 12 类 Mermaid 解析与布局只有单测；1/2 真机验收只看了 ASCII 树、flowchart、sequence | 在真机 3D 面板逐个打开 class / state / er / mindmap / gitGraph / journey / gantt / timeline / pie / quadrant 与通用兜底图，检查节点与连线是否可读 |
+| 11 | **3D 合并视图在复杂分组 / 大量边下的可读性** | 合并逻辑有单测，但没有在真机上评估分组重映射、边交叉与文字遮挡 | 准备两个各含 50+ 节点、同名节点与分组较多的大图，合并后目视检查 |
+| 12 | **多根工作区的真机行为** — ✅ 已验证（2026-10-26，VS Code 1.137.0，Windows 11） | 已用两根工作区验证：默认存储与 `${workspaceFolder}` 落在第一个根；`${workspaceFolder:ws-b}` / `${workspaceFolder:1}` 解析到第二个根；名称 / 序号不存在时显示「⚠ 路径无法解析」并有 tooltip 与点击警告；资源管理器右键添加第二个根的文件夹保存为占位符；移除第一个根后默认存储切到新的第一个根（旧文件不动），`${workspaceFolder}` 重新指向新首根，序号占位符失效，无崩溃。证据：`.selftest/e2e-resource-tree-multiroot/probe-multiroot*.mjs` 与截图 `mr-01…mr-14` | 已关闭，无需再验证 |
+| 13 | **远程 / 虚拟文件系统上的原子 rename** | `workspace.fs.rename(overwrite)` 在部分 provider 上可能不支持；当前策略是「失败即报错、旧文件不动」，没有 copy+fsync 降级。**本机检查（2026-10-26，VS Code 1.137.0）**：Remote-SSH 扩展未安装且没有可用 SSH 主机、WSL 可选功能已禁用、Docker / Dev Containers 未安装、Remote Tunnels 无账号，四种 provider 均不可用。仅在 SMB 回环共享（`\\localhost\ShareData` → `Z:`，仍是 `file` provider）上验证：`rename(overwrite:true)` 可用，`overwrite:false` 抛 `FileExists`；1500 节点 / 161 KB 写入约 24–30 ms，写入期间可见同目录 `.tmp-*`、结束后无残留；外部进程锁住目标时写入以 `EBUSY ... unlink '<target>'` 失败，旧文件字节不变、临时文件被清理，解锁后同一命令成功。**SSH / WSL / Containers / Tunnels 与跨主机 / 非 Windows 文件系统仍未验证** | 在 SSH / WSL / Remote Containers 里编辑并保存资源树，观察是否报错 |
+| 14 | **网络盘 / 超大树上的 stat 性能** | 每行同步 `fs.statSync` 已移除，本地 2000 节点 / 1000 子目录基准通过（见第 23 条）；但网络共享、高延迟与各 provider 的 `workspace.fs` 实现仍未测，外部变化也可能延迟到 30s TTL 后才显示 | 把资源树指向网络共享或含数千子目录的目录，记录首次展开 / 刷新耗时与界面是否卡顿 |
+| 15 | **外部并发编辑的冲突时序** — ✅ 已验证（2026-10-26，VS Code 1.137.0，Windows 11） | 用真实 VS Code 文本编辑器缓冲区 + 外部写入构造：外部未保存 + 扩展写入 → 外部保存 → 刷新后扩展写入丢失（VS Code 先要求 Overwrite / Compare）；扩展写入 → 外部覆盖 → 刷新读到外部版本；非法 JSON + 刷新保留当前树、不动文件、不崩溃；两次写入之间强杀扩展宿主，文件完整且无 `.tmp-*`。已加入写前规范化比较 + 非模态「覆盖 / 取消」警告：取消时两边都不变，覆盖后仍是最后写入者获胜，且检查存在 TOCTOU 窗口。证据：`.selftest/e2e-resource-tree-concurrency/probe-concurrency.mjs`（17/17）、截图 `cc-01…cc-11` | 已关闭——剩余的「写入过程中强杀」窗口记录在第 23 条 |
+| 16 | **符号链接 / 无权限路径的展示** — ✅ 已验证（2026-10-26，VS Code 1.137.0，Windows 11） | 已构造目录软链、文件软链、断链（目录 / 文件）、只读目录与 ACL 拒绝读取的目录：目录软链按目录处理、文件软链显示「⚠ 不是文件夹」、断链修复后显示「⚠ 链接已断开」且点击提示明确；只读目录无变化；ACL 拒绝读取的目录在本地 NTFS 上 stat 仍成功，资源树按普通目录显示（不与「不存在」混淆，但也不预警），本机因 Administrator + `SeBackupPrivilege` 无法复现 EACCES。证据：`.selftest/e2e-resource-tree-symlink/probe-symlink-{before,after}.mjs` 与 `sym-*.png` | 已关闭，无需再验证 |
+
+> 第 13 条本机检查于 2026-10-26 完成，探针与截图位于 `.selftest/e2e-resource-tree-remote/`（`probe-remote.mjs`、`probe-ui-only.mjs`、`rem-01…rem-03`）。本机没有四类命名 provider，因此该条**保持未验证**，只取得 SMB 回环共享上的 `file` provider 证据；共享与 VS Code 在同一台 Windows 上，不能代表跨主机 / Linux 文件系统。顺带观测：锁住目标文件时，`workspace.fs.rename(overwrite:true)` 的失败信息为 `EBUSY ... unlink '<target>'`，即该路径会对目标执行 unlink；若 unlink 成功而后续 rename 失败（如进程被强杀），旧文件可能已消失、只剩 `.tmp-*`。现有实现没有 copy+fsync 降级。
 
 > 第 9 条在本次文档梳理中关闭：三语链接与锚点已由 `node tools/docs-check.mjs` 自动检查，**0 问题**才算通过。
+
+> 第 12 条于 2026-10-26 关闭：多根行为已完成真机验证（探针与截图位于 `.selftest/e2e-resource-tree-multiroot/`）；保留该行只为不打乱后续条目的编号。
+
+> **3D 面板已完成的真机验证**：入口（右键 / 命令面板）、重复打开只 reveal、标题计数、左右下拉与 15%–85% 分栏、合并 / `Esc`、间隔滑杆、刷新、重置视角、左键旋转 / 右键平移 / 滚轮缩放、窗口自适应，以及打包 VSIX 复验，均在 VS Code 1.137.0 上通过（探针位于 `.selftest/e2e-graph3d/`，2026-10-26）。上表只列仍未验证的部分。
 
 ## 三、这份清单怎么用
 

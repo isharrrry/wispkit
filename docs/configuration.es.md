@@ -11,14 +11,14 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
 
 [English](configuration.md) | [中文](configuration.zh-CN.md) | **Español**
 
-Todos los ajustes se definen en `contributes.configuration` dentro de `package.json`; hay **13**.
+Todos los ajustes se definen en `contributes.configuration` dentro de `package.json`; hay **14**.
 
 ## Resumen
 
 | Clave | Tipo | Valor por defecto | Se aplica a | Cuándo cambiarlo | Efecto secundario |
 |---|---|---|---|---|---|
 | `wispkit.toc.enabled` | boolean | `true` | vista Markdown | El cuerpo ya es lo bastante ancho y solo quieres leer el contenido | La barra lateral entera deja de renderizarse y los saltos del índice desaparecen con ella |
-| `wispkit.toc.depth` | number (1–6) | `3` | vista Markdown | El documento es muy profundo y quieres localizar subsecciones rápido | Con 6 la barra lateral queda muy abarrotada |
+| `wispkit.toc.depth` | number (1–6) | `6` | vista Markdown | Quieres que la barra lateral quede compacta en documentos profundos | Los valores bajos ocultan los niveles profundos del árbol |
 | `wispkit.zoom.wheelStep` | number (1.01–3) | `1.1` | imagen / modal / render XAML | Cada muesca de rueda salta demasiado | Cambia en los tres sitios a la vez; con 1.01 el zoom es casi imperceptible |
 | `wispkit.image.wheelZoom` | boolean | `true` | vista de imagen | Necesitas que la rueda desplace rápido para navegar | Al desactivarlo vuelve a «mantener Ctrl para ampliar» |
 | `wispkit.image.dragButton` | `right` \| `middle` \| `left` | `right` | vista de imagen | Un gesto del sistema ocupa el botón derecho | Ponerlo en `left` choca con el arrastre y la selección del sistema; no se recomienda |
@@ -27,9 +27,10 @@ Todos los ajustes se definen en `contributes.configuration` dentro de `package.j
 | `wispkit.readonly.default` | boolean | `false` | modo de solo lectura global | Solo quieres navegar y no cambiar archivos por error | Reescribe `workbench.editorAssociations` y lo elimina al desactivarse |
 | `wispkit.readonly.previewBytes` | number (≥1024) | `65536` | modo de solo lectura global | Los archivos son grandes y quieres abrirlos más rápido | Lo que excede **no se carga** (no se pliega) |
 | `wispkit.readonly.previewLines` | number (≥50) | `800` | modo de solo lectura global | Solo quieres ver las primeras líneas | Lo que excede no se muestra y al final se avisa del truncado |
-| `wispkit.readonly.extensions` | string[] | 61 patrones glob | modo de solo lectura global | Solo ciertos tipos deben ser de solo lectura | Cambiarlo reescribe las asociaciones de inmediato; **no** añadas `.md`/`.html`/`.xaml`/imágenes |
+| `wispkit.readonly.extensions` | string[] | 61 patrones glob | modo de solo lectura global | Solo ciertos tipos deben ser de solo lectura | Cambiarlo reescribe las asociaciones de inmediato; **no** añadas `.md`/`.html`/`.xaml`/imágenes/vídeos |
 | `wispkit.subtree.columns` | string[] (9 valores de enum) | `name,size,type,mtime,ctime,owner` | panel de subárbol | Quieres examinar un directorio por fecha de modificación o tamaño | Los valores inválidos se filtran, los duplicados se eliminan y un array vacío vuelve a los valores por defecto |
 | `wispkit.subtree.tools` | object[] | `[]` | panel de subárbol | Quieres colgar comandos externos habituales en el lado derecho del panel | Los argumentos no se escapan para el shell; `external` abre de verdad una ventana |
+| `wispkit.resourceTree.file` | string | `.WispkitView/resource-tree.json` | gestión de recursos personalizada | Quieres el archivo del árbol en otro sitio, o fijarlo a una raíz concreta en un espacio multitráiz | Se recarga solo; una ruta no resoluble conserva el árbol actual y muestra un diagnóstico |
 
 ## Índice de contenido
 
@@ -41,8 +42,8 @@ Todos los ajustes se definen en `contributes.configuration` dentro de `package.j
 
 ### `wispkit.toc.depth`
 
-- Tipo `number`, por defecto `3`, rango 1–6.
-- Determina la profundidad del árbol del índice. Con 6 entran todos los encabezados y los documentos largos se vuelven abarrotados.
+- Tipo `number`, por defecto `6`, rango 1–6.
+- Determina la profundidad del árbol del índice. Markdown define seis niveles de encabezado (`#` a `######`), así que el valor por defecto incluye **todos** los encabezados que permite la especificación; los valores más bajos ocultan a propósito los niveles profundos.
 - Independiente del cuerpo; afecta solo a la barra lateral.
 
 ## Zoom
@@ -100,7 +101,7 @@ Todos los ajustes se definen en `contributes.configuration` dentro de `package.j
 
 - Tipo `string[]`, por defecto 61 patrones glob (`.txt` `.log` `.json` `.ts` `.py` `.cs` …).
 - Los tipos de archivo a los que se aplica el modo de solo lectura. Cuando está activo, estos tipos se escriben en `workbench.editorAssociations` para que su manejador de apertura nativo sea la vista de solo lectura.
-- **Excluye deliberadamente** los tipos de navegación propios de Wispkit (`.md` / `.html` / `.xaml` / imágenes) — truncarlos produciría un render roto.
+- **Excluye deliberadamente** los tipos de navegación propios de Wispkit (`.md` / `.html` / `.xaml` / imágenes / vídeos) — truncarlos produciría un render roto.
 - Un array vacío significa que el modo de solo lectura no se aplica a ningún archivo.
 
 ## Panel de subárbol
@@ -151,6 +152,45 @@ Un array de herramientas propias, vacío por defecto. Cada elemento tiene esta f
 | `${workspaceFolder}` | la ruta absoluta de la primera carpeta del espacio de trabajo |
 
 La sustitución es un **reemplazo literal de cadenas** sin escapado de shell — cuando una ruta contiene espacios, añade las comillas tú mismo en la configuración (`"cd '${dir}'"`).
+
+## Gestión de recursos personalizada
+
+### `wispkit.resourceTree.file`
+
+- Tipo `string`, por defecto `.WispkitView/resource-tree.json`.
+- Una ruta relativa se resuelve respecto a la **primera carpeta del espacio de trabajo**; también se acepta una ruta absoluta.
+- Marcadores: `${workspaceFolder}` (el primer espacio de trabajo), `${workspaceFolder:nombre}`, `${workspaceFolder:índice}`.
+- Los valores inválidos — un directorio, caracteres ilegales, una letra de unidad sin barra, un separador de directorio final — producen un **error y conservan el árbol actual**; la extensión nunca vuelve en silencio al archivo por defecto.
+- Al cambiar el ajuste se lee el nuevo archivo de inmediato; un archivo ausente se muestra como árbol vacío y se crea en la primera edición.
+- La escritura es «archivo temporal hermano + rename»: un disco lleno o un proceso interrumpido no pueden vaciar el archivo anterior.
+
+Estructura del archivo (`version` siempre es `1`):
+
+```jsonc
+{
+  "version": 1,
+  "roots": [
+    {
+      "type": "group",
+      "id": "g-frontend",
+      "name": "Frontend",
+      "children": [
+        {
+          "type": "folder",
+          "id": "f-src",
+          "name": "src",
+          "path": "${workspaceFolder}/src",
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+- Un `group` solo tiene `type` / `id` / `name` / `children` y **no apunta a ninguna carpeta del disco**; un `folder` además tiene `path`.
+- `id` debe ser único dentro del archivo; los ids duplicados / demasiado largos / que no son cadenas se reasignan automáticamente con una advertencia (si falta, se genera uno nuevo sin aviso).
+- Topes: 2000 nodos en total, 200 hijos por nivel, profundidad 12; lo que exceda se trunca al leer con un aviso.
 
 ## `configurationDefaults`: mermaid se puede ampliar sin configurar nada
 
@@ -216,6 +256,9 @@ El icono «Mostrar» a la izquierda de una fila de carpeta del Explorador lee es
       "args": ["${dir}"],
       "shell": "external"
     }
-  ]
+  ],
+
+  // Gestión de recursos personalizada
+  "wispkit.resourceTree.file": "${workspaceFolder}/.WispkitView/resource-tree.json"
 }
 ```

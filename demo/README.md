@@ -32,7 +32,7 @@
 
 ```
 1. 打开 demo 文件夹
-2. R2-toc/01-depth-default.md      → 看左侧目录 8 条、滚动高亮、点击定位
+2. R2-toc/01-depth-default.md      → 看左侧目录 11 条（含 h4/h5/h6）、滚动高亮、点击定位
 3. R2-toc/03-special-chars.md      → 看重复标题三条是否各跳各的
 4. R1-injection/01-injection-baseline.md → 图是图形 + 公式排版正常 = 注入成功
 5. R3-mermaid/02-large.md          → 在图上直接滚轮放大、拖动平移（不用按 Alt）
@@ -75,7 +75,7 @@ demo/
 ├─ R5-jump/          HTML 跳转 + 边界 + Markdown 链接差异
 │  └─ targets/       跳转靶子（行号与 LINE-xx-MARKER 严格对齐）
 ├─ assets/
-│  ├─ images/        12 张图：超大/极高/极宽/极小/透明/棋盘 + jpg bmp gif ico webp avif svg
+│  ├─ images/        13 张图：超大/极高/极宽/极小/透明/棋盘 + jpg bmp gif ico webp avif svg
 │  └─ html/          HTML 视图用的相对资源（css / js）
 └─ tools/            生成与自检脚本
 ```
@@ -111,7 +111,8 @@ node check-fixtures.mjs
 | 现象 | 原因 |
 |---|---|
 | 单文件模式下 `../assets/…` 是裂图 | webview `localResourceRoots` 只覆盖文档目录 + 工作区目录 |
-| svg 不走 Wispkit Image | 图片视图选择器是 `*.{png,jpg,jpe,jpeg,bmp,gif,ico,webp,avif}`，**不含 svg** |
+| HEIC / TIFF / JXL 只能看兜底面板 | Chromium 内核没有这些解码器；Wispkit 不打包 libheif 等大依赖，只提供「用系统默认应用打开」 |
+| MKV / AVI / WMV / FLV 可能无法播放 | 取决于运行时编解码器；失败时显示原因和「系统播放器打开」，不会静默黑屏 |
 | Markdown 视图里 `command:` 链接点不动 | Markdown 视图**没有**开 `enableCommandUris`（安全取舍） |
 | Markdown 视图里 `vscode://file/…` 可能另起窗口 | Markdown 视图**不做**链接改写（改写只在 HTML 视图） |
 | HTML 视图里内联 `<script>` 能跑 | HTML 视图故意用宽松 CSP（"浏览 HTML"的本意） |

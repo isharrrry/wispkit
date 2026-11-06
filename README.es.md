@@ -65,6 +65,8 @@ dotnet build -c Release
 
 | Para saber sobre | Lee |
 |---|---|
+| Qué se promete y cómo se juzga cada promesa | [Requisitos y criterios de aceptación](docs/requirements.es.md) |
+| Objetivos de calidad, niveles de prueba y sus puntos ciegos, la puerta de integración, clasificación de defectos | [Restricciones de prueba y calidad](docs/test-and-quality.es.md) |
 | Capas, responsabilidades de módulos, un flujo de datos completo | [Arquitectura](docs/architecture.es.md) |
 | Interacción, gestos y contratos de mensajes de las siete vistas, la gestión de recursos personalizada, el panel de subárbol y la navegación 3D de gráficos | [Vistas e interacción](docs/views-and-interaction.es.md) |
 | Referencia a nivel de campo de los 14 ajustes, `Wispkit.json`, marcadores de herramientas | [Configuración](docs/configuration.es.md) |
@@ -74,6 +76,21 @@ dotnet build -c Release
 
 **Regla de documentación**: cada tema en `docs/` existe en inglés, chino y español — **cualquier cambio actualiza los tres en el mismo cambio** (las variantes son traducciones fieles, no resúmenes). La única excepción es `docs/development-notes.zh-CN.md`, un registro de ingeniería interno que se mantiene solo en chino. Lo no verificado se etiqueta explícitamente en [Limitaciones conocidas](docs/limitations.es.md) en lugar de presentarse como garantía.
 
+## Mantenimiento de este repositorio
+
+**[Requisitos y criterios de aceptación](docs/requirements.es.md) es la única declaración autorizada de lo que esta extensión promete y de cómo se juzga cada promesa.** Cuando cualquier otro documento lo contradice, gana la página de requisitos y el otro documento es defectuoso.
+
+| Si cambias | También debes actualizar | Porque |
+|---|---|---|
+| Cualquier comportamiento visible para el usuario | La entrada `R` / `AC` correspondiente en [Requisitos](docs/requirements.es.md) | Los requisitos preceden a la implementación; un documento que va por detrás del comportamiento es un defecto, no una tarea pendiente |
+| La interacción o el gesto de cualquier vista | [Vistas e interacción](docs/views-and-interaction.es.md) y el material `demo/R<n>-*/` de esa vista | Un criterio solo vale la pena escribirlo si el siguiente lector puede reproducirlo |
+| Cualquier ajuste | [Configuración](docs/configuration.es.md) y cada paquete `package.nls*.json` | Una clave de ajuste es un contrato externo; renombrarla en silencio rompe las configuraciones de los usuarios |
+| Un recuento de pruebas, el tamaño del VSIX o cualquier resultado medido | [Restricciones de prueba y calidad](docs/test-and-quality.es.md) **y** [Compilación y verificación](docs/build-and-verify.es.md) | Un número debe venir de un comando realmente ejecutado, nunca de una estimación; la puerta y la cifra viven en dos archivos que deben moverse juntos |
+| Cualquier documento | Las variantes en chino y español, **en el mismo cambio** | Un documento en un solo idioma es un defecto por sí mismo |
+| Una vista o capacidad nueva | Un número `R` asignado en [Requisitos](docs/requirements.es.md) **primero**, y después la implementación | El número es la identidad del requisito; asignarlo después vuelve retroactiva la correspondencia con el material |
+
+La tabla de temas de arriba y la del [índice de documentación](docs/index.es.md) también deben revisarse juntas: el índice puede desglosar un tema en filas más finas, pero ningún tema puede aparecer en una tabla y faltar en la otra.
+
 ## Compilación y entorno medido
 
 | Ítem | Valor |
@@ -81,10 +98,10 @@ dotnet build -c Release
 | Node / npm | **^22.22.2 / ^24.15.0 / >=26** (lo que acepta jsdom 30); la CI fija 22.22.2 y ejecuta `npm ci` → lint → compile → test en Windows |
 | TypeScript | 5.7 |
 | esbuild | 0.24 (8 bundles de webview; `graph3d` se minifica aparte) |
-| Pruebas | mocha + jsdom, **952 pasando**, 57 archivos de prueba |
+| Pruebas | mocha + jsdom, **1059 pasando**, 62 archivos de prueba |
 | Bundle 3D | `media/dist/graph3d.js`, unos 603 KB (incluye three.js, minificado) |
 | Lint | eslint 9, **0 errores** |
-| VSIX | 154 entradas / ~1,57 MB (incluye docs, los tres README y las capturas) |
+| VSIX | 172 entradas / ~1,71 MB (incluye docs, los tres README y las capturas) |
 | VS Code medido | **1.137.0** (Windows) |
 
 ## Capturas de pantalla

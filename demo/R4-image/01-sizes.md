@@ -60,15 +60,19 @@
 | ICO | `../assets/images/icon-64x64.ico` | 能打开 |
 | WEBP | `../assets/images/grid-4000x3000.webp` | 能打开（若文件不存在见下） |
 | AVIF | `../assets/images/grid-4000x3000.avif` | 能打开（若文件不存在见下） |
+| SVG | `../assets/images/vector-400x300.svg` | 能打开；滚轮放大按矢量重绘，不糊 |
 
-**关于 svg**：`../assets/images/vector-400x300.svg` **不在** image 视图的 selector 里
-（`package.json` 的 `contributes.customEditors` 选择器是 `*.{png,jpg,jpe,jpeg,bmp,gif,ico,webp,avif}`，**没有 svg**）。
-所以 svg 会用**内置**预览打开、也用不上这里的缩放平移。在 Markdown 里则正常显示：
+**关于 svg**：`../assets/images/vector-400x300.svg` **在** image 视图的 selector 里
+（`package.json` 的 `contributes.customEditors` 选择器从 0.2.5 起包含 `svg`）。
+双击 / 右键用 **Wispkit Image** 打开即可；放大改的是布局宽高，不会像位图那样发虚。在 Markdown 里则正常显示：
 
 ![vector svg](../assets/images/vector-400x300.svg)
 
 > webp / avif 由 `tools/gen-webp-avif.mjs` 转换生成；本机没有系统级编码器（无 ImageMagick/cwebp/avifenc），
 > 所以它们依赖 npm 的 `sharp`。**如果这两个文件不存在**，说明当时没跑转换，其余验证不受影响。
+
+> HEIC / HEIF / TIFF / JXL 没有内核解码器，图片视图仍会接管，但只显示失败原因 + 「用系统默认应用打开」。
+> 视频（MP4 / WebM / MOV / MKV 等）由 **Wispkit Video** 接管，播放能力取决于运行时编解码器。
 
 ## 8. 一行里放多张（验证文档里的图片不互相影响）
 

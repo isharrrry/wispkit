@@ -1,75 +1,45 @@
-# R5-03 Markdown 里的跳转链接（同插件内的行为差异）
+# R5-03 Markdown 里的跳转链接
 
-> **这一份要说明一个真实差异，先看结论再动手。**
->
-> | 视图 | 是否改写 `vscode://file/…` | 是否有 `enableCommandUris` |
-> |---|---|---|
-> | **HTML 视图**（`01-basic.html`） | **是** → `command:vscode.open?…` | **是** |
-> | **Markdown 视图**（本文件） | **否**（改写只在 HTML 视图做） | **否** |
->
-> 所以下面的链接在 Markdown 视图里点，走的是**宿主白名单里的 `vscode:`** 这条路
-> （会绕经系统协议处理器，可能另起一个窗口），而**不是**"当前窗口 + 精确行号"。
+> **当前行为（2026-10-26 起）**：Markdown 与 HTML 两个视图走同一套链接路由 ——
+> 前端截住 `<a>` 点击，把**原始 href** 送回扩展，由扩展相对当前文档解析后
+> 在当前窗口打开。相对链接不会再被 `<base>` 解析成 webview 资源 URL 而跳系统浏览器。
 
-## 1. `vscode://file/` 链接（Markdown 语法）
+## 1. 相对链接（本次修复的主项）
+
+- [相对链接到 targets/target-simple.md](targets/target-simple.md)
+- [带行号的相对链接（第 7 行）](targets/target-simple.md#L7)
+- [中文 + 空格文件名](targets/目标 中文空格.md)
+- [深目录](targets/deep/nested/target-deep.md)
+
+**期望**：都在**当前窗口**打开目标 Markdown（由默认编辑器接管，通常是 Wispkit Markdown），
+`#L7` 这一条会把光标定位到第 7 行。
+
+## 2. `vscode://file/` 链接（Markdown 语法）
 
 - [跳到 target-simple.md 第 7 行](vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/R5-jump/targets/target-simple.md:7)
 - [打开 target-simple.md（不带行号）](vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/R5-jump/targets/target-simple.md)
 - [跳到「目标 中文空格.md」第 9 行](vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/R5-jump/targets/%E7%9B%AE%E6%A0%87%20%E4%B8%AD%E6%96%87%E7%A9%BA%E6%A0%BC.md:9)
 
-**观察点**（请记录实际表现）：
-1. 能不能点开？
-2. 是在**当前窗口**打开，还是**另起了一个窗口**？
-3. 行号定位生效了吗？
+**期望**：不再绕系统协议处理器（不会另起窗口）；由扩展解析后在本窗口打开。
 
-## 2. `command:` 链接（预期：点不动）
+## 3. 外部链接（预期：交给系统浏览器）
 
-[command:vscode.open 打开文件](command:vscode.open?%5B%22file%3A%2F%2F%2FD%3A%2FAllData%2FAIDATA%2Ftechsearch%2FWispkit%2Fdemo%2FR5-jump%2Ftargets%2Ftarget-simple.md%22%5D)
+[VS Code 官网](https://code.visualstudio.com) —— 与 VS Code 内置预览一致。
 
-**预期**：在 Markdown 视图里**点不动**（没有 `enableCommandUris`）。
-同样这条链接放到 `R5-jump/02-edge.html` 里就能点 —— 这就是两个视图的差别。
-
-## 3. 相对路径链接（预期：点不动）
-
-[相对链接到 targets/target-simple.md](targets/target-simple.md)
-
-**预期**：Markdown 渲染出的 `<a href="targets/…">` 会相对 `<base href>` 解析成 `vscode-webview://…`，
-该 scheme 不在白名单 → 点不动。**属于已知限制**。
-
-
-
-
-
-
-
-
-
-## 4. 外部链接（预期：正常）
-
-[VS Code 官网](https://code.visualstudio.com) —— 期望交给系统浏览器打开。
-
-## 5. 锚点链接（预期：正常）
+## 4. 锚点链接（预期：页内滚动）
 
 [跳到本文末尾](#末尾) —— 期望页内滚动。
 
 ---
 
-## 为什么会有这个差异 / 要不要统一
+## 实现要点
 
-- **HTML 视图**是本插件**自己造的页面**，我们完全控制它的 `<a>` 落点，所以可以改写、也敢开 `enableCommandUris`。
-- **Markdown 视图**的内容是 `markdown.api.render` 的**输出**，作者可能来自第三方文档；在这里开
-  `enableCommandUris` 等于允许**文档内容触发任意 VS Code 命令**——对"打开外部下载的 md"是不小的风险面。
-- 所以当前设计是**故意不对称**的。
-
-如果你希望 Markdown 视图也走"当前窗口 + 精确行号"，可选做法（按代价从小到大）：
-
-| 方案 | 改动 | 代价 |
-|---|---|---|
-| A. 在 Markdown 视图里也改写 `vscode://file/…`，但**不开** `enableCommandUris` | 复用现成的 `rewriteVscodeFileLinksInHtml`，前端 0 行 | `command:` 仍被拒 → **改写完反而点不动**，所以方案 A 实际无效 |
-| B. 改写 + 开 `enableCommandUris` | 同上 + 一个布尔 | 语义与 HTML 视图一致；**代价是打开了命令执行面** |
-| C. 只改写、改写成 `vscode://file/…` 之外的**受控**形式（例如自定义 webview 消息，点击后由扩展调 `vscode.open`） | 前端要拦 `click`、定消息契约 | 最安全，但要写消息路由（约 30 行） |
-
-**我的建议**：先按现在这样用（HTML 视图精确跳转、Markdown 视图走系统协议），等你实测完
-把第 1 组的三条观察结果告诉我，再决定要不要上 C。
+- 页面仍需要 `<base href="<webview 资源 URL>">` 才能加载相对图片 / 样式；
+  因此**相对链接的 `anchor.href` 一定不是文件路径**，只能读原始 `getAttribute('href')`。
+- 点击在 `document` 的冒泡阶段拦截：页面自己的脚本先跑（`preventDefault()` 后不抢），
+  再 `stopPropagation()`，避免 webview 外壳按 `https:` 把它交给系统浏览器。
+- `#锚点` 与 `command:` 不拦：前者交给浏览器 / 目录定位，后者由宿主的
+  `enableCommandUris` 执行（drawio 的"编辑"按钮依赖它）。
 
 ## 末尾
 

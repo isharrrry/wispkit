@@ -11,14 +11,14 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
 
 **English** | [中文](configuration.zh-CN.md) | [Español](configuration.es.md)
 
-Every setting is defined under `contributes.configuration` in `package.json`; there are **13** of them.
+Every setting is defined under `contributes.configuration` in `package.json`; there are **14** of them.
 
 ## Overview
 
 | Key | Type | Default | Applies to | When to change it | Side effects |
 |---|---|---|---|---|---|
 | `wispkit.toc.enabled` | boolean | `true` | Markdown view | the body is wide enough and you only want the content | the whole sidebar is not rendered and TOC jumping goes with it |
-| `wispkit.toc.depth` | number (1–6) | `3` | Markdown view | a deep document hierarchy and fast section jumps | at 6 the sidebar becomes very crowded |
+| `wispkit.toc.depth` | number (1–6) | `6` | Markdown view | the sidebar should stay compact on a deep document | lower values hide the deeper heading levels from the tree |
 | `wispkit.zoom.wheelStep` | number (1.01–3) | `1.1` | image / modal / XAML render | one wheel notch jumps too far | all three places change together; 1.01 is almost imperceptible |
 | `wispkit.image.wheelZoom` | boolean | `true` | image view | you want the wheel to scroll through the image quickly | once off, zooming requires holding Ctrl again |
 | `wispkit.image.dragButton` | `right` \| `middle` \| `left` | `right` | image view | the right button is taken by a system gesture | `left` fights the system drag/selection; not recommended |
@@ -27,9 +27,10 @@ Every setting is defined under `contributes.configuration` in `package.json`; th
 | `wispkit.readonly.default` | boolean | `false` | global read-only mode | you only browse and do not want to edit files by accident | rewrites `workbench.editorAssociations`, removed again when turned off |
 | `wispkit.readonly.previewBytes` | number (≥1024) | `65536` | global read-only mode | large files, opening should be faster | the rest is **not loaded** (not collapsed) |
 | `wispkit.readonly.previewLines` | number (≥50) | `800` | global read-only mode | you only want the first N lines | the rest is not displayed, with a truncation notice at the end |
-| `wispkit.readonly.extensions` | string[] | 61 glob patterns | global read-only mode | only specific types should be read-only | any change rewrites the associations; **do not** add `.md`/`.html`/`.xaml`/images |
+| `wispkit.readonly.extensions` | string[] | 61 glob patterns | global read-only mode | only specific types should be read-only | any change rewrites the associations; **do not** add `.md`/`.html`/`.xaml`/images/videos |
 | `wispkit.subtree.columns` | string[] (9 enum values) | `name,size,type,mtime,ctime,owner` | subtree panel | you want to review a directory by modified time or size | invalid values filtered, duplicates removed, empty falls back to the default |
 | `wispkit.subtree.tools` | object[] | `[]` | subtree panel | you want to hang frequently used external commands on the right of the panel | arguments are not shell-escaped; `external` really opens a window |
+| `wispkit.resourceTree.file` | string | `.WispkitView/resource-tree.json` | custom resource management | you want the tree file elsewhere, or pinned to a specific root in a multi-root workspace | reloads automatically; an unresolvable path keeps the current tree and shows a diagnostic |
 
 ## Table of contents
 
@@ -41,8 +42,8 @@ Every setting is defined under `contributes.configuration` in `package.json`; th
 
 ### `wispkit.toc.depth`
 
-- Type `number`, default `3`, range 1–6.
-- Determines how deep the TOC tree goes. At 6 every heading enters the tree and long documents become crowded.
+- Type `number`, default `6`, range 1–6.
+- Determines how deep the TOC tree goes. Markdown defines six heading levels (`#` to `######`), so the default lists **every** heading the Markdown spec can produce; lower values intentionally hide the deeper levels.
 - Independent of the body; affects the sidebar only.
 
 ## Zoom
@@ -152,6 +153,45 @@ An array of custom tools, empty by default. Each item is shaped like this:
 
 Substitution is **plain string replacement** with no shell escaping — when a path contains spaces, add the quotes yourself in the configuration (`"cd '${dir}'"`).
 
+## Custom resource management
+
+### `wispkit.resourceTree.file`
+
+- Type `string`, default `.WispkitView/resource-tree.json`.
+- A relative path is resolved against the **first workspace folder**; an absolute path is accepted too.
+- Placeholders: `${workspaceFolder}` (the first workspace), `${workspaceFolder:name}`, `${workspaceFolder:index}`.
+- Invalid values — a directory, illegal characters, a drive letter without a slash, a trailing directory separator — produce an **error and keep the current tree**; the extension never silently falls back to the default file.
+- Changing the setting reads the new file immediately; a missing file shows as an empty tree and is created on the first edit.
+- Writes are "temporary sibling file + rename": a full disk or a killed process cannot empty the old file.
+
+File structure (`version` is always `1`):
+
+```jsonc
+{
+  "version": 1,
+  "roots": [
+    {
+      "type": "group",
+      "id": "g-frontend",
+      "name": "Frontend",
+      "children": [
+        {
+          "type": "folder",
+          "id": "f-src",
+          "name": "src",
+          "path": "${workspaceFolder}/src",
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+- A `group` has only `type` / `id` / `name` / `children` and **points at no disk folder**; a `folder` additionally has `path`.
+- `id` must be unique within the file; duplicate / over-long / non-string ids are reassigned automatically with a warning (a missing id is generated silently).
+- Caps: 2000 nodes in total, 200 children per level, depth 12; anything beyond is truncated on read with a notice.
+
 ## `configurationDefaults`: mermaid zooms out of the box
 
 `package.json` contains a `contributes.configurationDefaults` block:
@@ -216,6 +256,9 @@ The "Show" icon on the left of an Explorer folder row reads this file.
       "args": ["${dir}"],
       "shell": "external"
     }
-  ]
+  ],
+
+  // Custom resource management
+  "wispkit.resourceTree.file": "${workspaceFolder}/.WispkitView/resource-tree.json"
 }
 ```

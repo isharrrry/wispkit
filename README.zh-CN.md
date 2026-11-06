@@ -65,6 +65,8 @@ dotnet build -c Release
 
 | 想了解 | 读 |
 |---|---|
+| 扩展承诺了什么、每一项按什么判定 | [需求与验收判据](docs/requirements.zh-CN.md) |
+| 质量目标、测试层级与各自盲区、合并门禁、缺陷分级 | [测试与质量约束](docs/test-and-quality.zh-CN.md) |
 | 分层、模块职责、一次完整数据流 | [架构](docs/architecture.zh-CN.md) |
 | 7 个视图、自定义资源管理、子树面板与 3D 图浏览的交互、手势、消息契约 | [视图与交互](docs/views-and-interaction.zh-CN.md) |
 | 14 个配置项的字段级参考、`Wispkit.json`、工具占位符 | [配置参考](docs/configuration.zh-CN.md) |
@@ -74,6 +76,21 @@ dotnet build -c Release
 
 **文档纪律**：`docs/` 下每篇主题都有英/中/西三个版本，**任何修改必须在同一次改动里同步更新三份**（语言变体是忠实翻译，不是摘要）。唯一例外是 `docs/development-notes.zh-CN.md`——内部工程记录，仅中文。未验证项一律在[已知限制](docs/limitations.zh-CN.md)显式标注，不当作设计保证陈述。
 
+## 维护本仓库
+
+**[需求与验收判据](docs/requirements.zh-CN.md)是「这个扩展承诺了什么、每一项按什么判定」的唯一权威来源。** 任何其他文档与它冲突时，以需求页为准，那份文档即为缺陷。
+
+| 如果你改了 | 你必须同时更新 | 因为 |
+|---|---|---|
+| 任何用户可见的行为 | [需求与验收判据](docs/requirements.zh-CN.md)里对应的 `R` / `AC` 条目 | 需求先于实现；文档落后于行为是缺陷，不是待办事项 |
+| 任一视图的交互或手势 | [视图与交互](docs/views-and-interaction.zh-CN.md)与该视图的 `demo/R<n>-*/` 素材 | 一条判据只有能被下一个读者回放才值得写 |
+| 任何配置项 | [配置参考](docs/configuration.zh-CN.md)与每一份 `package.nls*.json` 语言包 | 配置键是外部契约；静默改名会破坏用户的既有配置 |
+| 测试数量、VSIX 体积或任何实测结果 | [测试与质量约束](docs/test-and-quality.zh-CN.md) **以及** [构建与验证](docs/build-and-verify.zh-CN.md) | 数字必须来自实际运行过的命令，不能来自估算；门禁与数字分处两份文档，必须一起动 |
+| 任何文档 | 中文与西班牙语版本，**必须在同一次改动内** | 单一语言的文档本身就是缺陷 |
+| 新增一个视图或能力 | 先在[需求与验收判据](docs/requirements.zh-CN.md)里分配 `R` 编号，再写实现 | 编号是需求的身份证；事后补编号会让素材映射变成追溯性的 |
+
+上面这张主题表与[文档索引](docs/index.zh-CN.md)里的主题表也必须一起改：索引可以把一个主题拆成更细的行，但同一个主题不能只出现在其中一张表里。
+
 ## 构建与实测环境
 
 | 项 | 值 |
@@ -81,10 +98,10 @@ dotnet build -c Release
 | Node / npm | **^22.22.2 / ^24.15.0 / >=26**（jsdom 30 接受的范围）；CI 固定 22.22.2，在 Windows 上按 `npm ci` → lint → compile → test 执行 |
 | TypeScript | 5.7 |
 | esbuild | 0.24（8 个 webview bundle，`graph3d` 单独压缩） |
-| 测试 | mocha + jsdom，**952 passing**，57 个测试文件 |
+| 测试 | mocha + jsdom，**1059 passing**，62 个测试文件 |
 | 3D bundle | `media/dist/graph3d.js` 约 603 KB（含 three.js，minified） |
 | lint | eslint 9，**0 error** |
-| VSIX | 154 条目 / 约 1.57 MB（含 docs、三语 README 与界面截图） |
+| VSIX | 172 条目 / 约 1.71 MB（含 docs、三语 README 与界面截图） |
 | 实测 VS Code | **1.137.0**（Windows） |
 
 ## 界面截图

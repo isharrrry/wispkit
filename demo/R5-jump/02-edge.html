@@ -40,11 +40,10 @@
 <div class="watch">文件名里含 <code>320x240</code>。预期：整个路径被当作文件、<strong>不会</strong>把 <code>240</code> 当成行号切掉。
 若报错找不到文件 → 正则贪婪/惰性写错了（这是个经典的切分陷阱）。</div>
 
-<h2>5. fragment 形式（<code>#L10</code>，预期：不改写）</h2>
+<h2>5. fragment 形式（<code>#L10</code>，预期：按行号打开）</h2>
 <p><a id="edge-fragment" href="vscode://file/D:/AllData/AIDATA/techsearch/Wispkit/demo/R5-jump/targets/target-simple.md#L10">target-simple.md#L10</a></p>
-<div class="watch">有些工具（GitHub 风格）用 <code>#L10</code> 表示行号，我们的改写只认 <code>:10</code> 形式。
-预期：原样保留 → 走 <code>vscode:</code> 白名单 → 由<strong>系统协议处理器</strong>接管（可能另起窗口）。
-若你希望也支持 <code>#L10</code>，这是个明确的功能请求。</div>
+<div class="watch">GitHub 风格的 <code>#L10</code> 现在也会被识别成行号（与 <code>:10</code> 等价），
+fragment 不会被编码进文件路径。普通 fragment（如 <code>#section</code>）会被丢弃，只打开文件。</div>
 
 <h2>6. 直接写 <code>command:</code> 链接（验证 enableCommandUris）</h2>
 <p><a id="edge-command" href="command:vscode.open?%5B%22file%3A%2F%2F%2FD%3A%2FAllData%2FAIDATA%2Ftechsearch%2FWispkit%2Fdemo%2FR5-jump%2Ftargets%2Ftarget-simple.md%22%5D">command:vscode.open 打开 target-simple.md</a></p>

@@ -21,7 +21,7 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-19T14:40:00+08:00 }
 | 阶段 | 做的事 | 为什么必须先做 |
 |---|---|---|
 | 1. 冒烟 | 在真实 VS Code 里确认要用的 API / 扩展点**确实存在、签名如预期** | 文档写的和实际能用的经常不一致；早期 plan 以 1.71.2 为基线，实机是 1.137.0，行为差很多 |
-| 2. 纯逻辑先行 | 解析、格式化、排序、高亮这类不碰 `vscode` 的代码先写 + 单测 | 这些是 477 个用例的主体，能在纯 Node 里跑，不必起 VS Code |
+| 2. 纯逻辑先行 | 解析、格式化、排序、高亮这类不碰 `vscode` 的代码先写 + 单测 | 这些是 1059 个用例的主体，能在纯 Node 里跑，不必起 VS Code |
 | 3. 宿主接线 | 把纯逻辑接到 provider / webview 上 | 接线错误编译器能抓一部分，运行时才能抓全部 |
 | 4. 探针实测 | 用真机探针读 webview 里的 computed style、节点数、CSP 违规 | **目视看不出的错误**（行高重叠、配色变黑、图片被拒载）只能靠探针读数值 |
 | 5. 打包安装 | `npm run package` → 装进真实 VS Code 手动点一遍 | 打包后的资源路径、`.vscodeignore` 与开发态不同 |
@@ -52,6 +52,14 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-19T14:40:00+08:00 }
 | 图片视图里所有图片都显示不出来 | `localResourceRoots` 只含扩展目录，而**图片本体在工作区** → 被 webview 拒载 | 把图片父目录加进 `localResourceRoots` |
 | 前端想拿图片真实路径拿不到 | webview 里的地址是 `vscode-webview://`，**反解不出真实文件路径** | 前端只上报「第几个元素 + 类型」，路径与源码由**宿主**回 Markdown 原文里取（`src/media/parse.ts` 纯函数）；图片再用 `alt` 交叉校验，索引错位也能救回 |
 | CSP 拦截自定义前端脚本 | `default-src 'none'` 下所有脚本必须带 nonce | 每个页面注入 nonce；`media/subtree.js` 用 `<script type="module" nonce=...>` 直接引源文件（自包含 ESM，不走 esbuild） |
+| mermaid 图**点开放大后反而更模糊**，图形被横向压扁、看着像黑白线稿 | 两件事叠在一起：①放大台的父级是 `display: flex`，`width: 3342px` 被 `flex-shrink` 压回容器宽度（574px）而高度不受限 → 宽高比破掉，实测 3342×1350 的图被画成 281×661，横缩 6 倍；②缩放靠 `transform: scale()` 且写了 `will-change: transform`，Chromium 会把元素栅格化成一个图层位图，再放大只是**拉伸那张位图** | 舞台加 `flex: 0 0 auto` 禁止收缩；矢量图改用**布局宽高**缩放（`width/height` = 原尺寸 × scale），`transform` 只留平移；去掉 `will-change` |
+| 首屏的 mermaid 块没有 `data-line`，点它**前面**那段会把整段围栏吞进编辑框（实测 88 行、2065px 高） | 源映射接力要用源码做自校验，而源码以前只在**进编辑模式**时才向宿主请求；首屏替换发生在源码到达之前 → 校验拿不到行号 → 整条放弃，那个空洞让前一段的区间一路延伸到下一个已知块 | 打开文档就请求源码；并且**取映射表前补漏**（邻居夹区间 + 只认唯一一段围栏），不再赌某个时机 |
+| `.mmd` 视图里图**靠右**，与 Markdown 预览的同一张图位置不同 | 内置 Mermaid 脚本把 `.mermaid` 包进 `.mermaid-wrapper > .mermaid-content`，并用 `transform: translate((容器宽 − SVG 宽)/2)` 居中；页面样式又给 wrapper 写了 `display:flex; justify-content:center`，内容先被 flex 居中一次，transform 再叠加一次 → 整体右移半个容器宽 | wrapper 只保留 `width:100%`，居中完全交给内置脚本；单测锁定该规则里不能出现 `display:flex` / `justify-content` |
+| Markdown 浏览器**切换明暗主题后 Mermaid 图变空白** | 内置预览脚本监听 `vscode.markdown.updateContent` 后执行 `init()`：先删掉所有 `.mermaid > svg`，再把容器 `textContent` 当源码重新渲染。已渲染的容器里只有 SVG，删完就是空字符串 → 不渲染；且每次 `DiagramManager.setup()` 都会再套一层 `.mermaid-wrapper` | 派发事件前统一走 `refreshMermaidDiagrams()`：从 `data-vscode-context.mermaidSource` 取回源码，把最外层 `.mermaid-wrapper` 整体换成干净的 `<div class="mermaid">源码</div>`，再写主题配置并派发；解析途中的空容器（data 里已有源码）也要还原 |
+| Markdown 打开瞬间工具栏图标**巨大**，样式加载完才恢复正常 | 图标是内联 `<svg class="wispkit-btn-icon">`，尺寸只写在外部 CSS 里；外部样式表到达前 SVG 按替换元素默认尺寸 **300×150** 渲染 | 每个图标 SVG 带 `width`/`height` **属性**兜底（CSS 仍可覆盖，滑块用 10px），并在 `<link>` 前内联一组最小关键样式定住工具栏形状 |
+| 3D 气泡里的长名称只剩前半截，后面的字**凭空消失** | `createTextSprite` 固定按 `mainSize*4.6` 折行、主文字最多保留 4 行（边标签 2 行），超出部分被丢弃 | 长名称先按空格 / 斜杠 / 反斜杠 / 横杠预换行，再按气泡可用宽高比自适应折行；主文字不截断，纹理超过 2048 时只缩字号。文字 Sprite 的可用矩形改为球的内接矩形（四角在球内），长文本不会从气泡轮廓外露 |
+| 3D 文字 Sprite 画出来被左右裁掉（真机截图：`textLayout.ts` 只剩 `tLayout`） | `canvas.measureText` 用的是**调用时刻**的 `context.font`。`fitLabelText` 交替调用 main/detail 两个测量闭包，而闭包内部没有重设 font → 主文字实际按 detail 的小字号测量，画布算窄了，绘制时按主字号画出就被裁 | 两个测量回调内部各自设置字体；这类「测量与绘制必须同字体」的约定写进注释，真机探针用自检钩子核对每行文字完整 |
+| 点 Markdown / HTML 里的**相对链接**：跳到系统默认浏览器（Markdown），或完全没反应（HTML / Bench） | `<base href>` 必须指向 webview 资源 URL（否则相对图片与样式加载不出来），于是相对链接被浏览器解析成 `https://file+.vscode-resource…`（Bench 是 `/__resource/…`）。webview 外壳把 `https:` 当外部链接 `openExternal`；不实现链接点击的宿主则什么都不做 | 页面在 `document` **冒泡阶段**截住 `<a>` 点击，把**原始 `href`**（不是 `anchor.href`）经 `wispkit.openLink` 送回宿主；宿主相对文档目录解析后调 `vscode.open` / `vscode.env.openExternal`。拦截后 `stopPropagation()`，外壳不会再按 https 打开一次。`#锚点`、`command:` 与外壳本就支持的 scheme（`http(s)` / `mailto` / 非 file 的 `vscode:`）不拦：前者交给目录 / 浏览器，`command:` 由 `enableCommandUris` 执行，外链仍交给系统 |
 
 **通用原则**：webview 里**不要相信任何"看起来能用"的路径**。所有资源 URL 一律经 `webview.asWebviewUri` 生成，所有跨边界数据一律走 `postMessage` 的消息契约。
 
@@ -76,6 +84,13 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-19T14:40:00+08:00 }
 | 目录树点击定位不展开折叠的祖先 | 只做了滚动，没更新折叠状态与高亮 | `reveal()` 先展开祖先再定位；文档内 `#锚点` 走同一路径 |
 | 列表项点击区域错位 | webview 里的坐标要减 `getBoundingClientRect()`，不是文档坐标 | 统一用元素相对坐标 |
 | 高亮器光标偏移 | 高亮层叠在透明 `<textarea>` 下，**token 拼接结果与输入差一个字符，光标就漂** | 高亮器必须**逐字保真**，测试断言逐字相等 |
+| 段落编辑框只有一行高，长段落在里面得横向拖 | `textarea` 上写了 `white-space: pre` 且 `wrap='off'`，而 Markdown 的一段通常是**一整行**（没有硬换行）→ `scrollHeight` 只算一行 | 改 `pre-wrap` + `overflow-wrap: anywhere`；此时 `scrollHeight` 才是换行后的真实高度，按它设高即可自适应 |
+| 编辑模式下点 mermaid 只会换成源码框，看不到图 | 编辑模式的点击一律交给段落编辑 | 已渲染的图（svg / img）在编辑模式下**优先放大**；容器的外框仍然可点开源码编辑 |
+| 3D 里节点明明带了图片，气泡却只显示文字 | `layoutGraph()` 会把 `GraphNode` 重建成只含固定字段的 `LaidOutNode`，新加的 `image` 在这一步被丢掉，前端 `node.image` 恒为 undefined | 给节点加字段时必须同时加到 `LaidOutNode` 与所有构造点；自检钩子 `imagePlans()` 可直接断言「图片 Sprite 确实创建了」 |
+| 长文本气泡里文字被左右裁掉 | `fitLabelText` 交替调用主 / 次文字的测量闭包，而 `measureText` 用的是**调用时刻**的 `context.font`；闭包不自己设字体就会拿错字号测量 | 每个测量闭包内部各自设 `context.font`（见 §4.3 的高亮器逐字保真同款思路） |
+| 新增布局算法后，下拉里选了没反应或自动变回「自动」 | 算法名在三个白名单里各有一份：页面 `<option>`、前端 `ALGORITHM_LABELS`、纯函数 `LAYOUT_ALGORITHMS`（`normalizeAlgorithm` 会静默丢弃未知值） | 三处必须同一次改动一起加；`graph3dPage` / `graph3dFrontend` 都有枚举断言防漏 |
+| 子树条目「拖动完全没反应」：dragstart 后紧跟 dragend，收不到任何 dragover / drop | dragstart 里**同步写 `role="status"` 状态栏** → 工具栏被挤压缩窄时按钮文字的 CJK 折行把工具栏从 38px 撑到 90px → 拖拽源行整体位移，Chromium 直接取消整次拖拽。窗口越窄越容易触发，宽窗口下可能一直不复现 | 按钮禁止收缩与换行：`.wispkit-subtree-btn { flex: 0 0 auto; white-space: nowrap; }`；真机探针在拖动过程中断言工具栏高度不变（`probe-layout-during-drag.mjs`） |
+| 从系统资源管理器拖文件进子树**不按 Shift 就没有任何反应** | VS Code webview 的 pre script 在 `dragenter` 发现「全是 File」时通知宿主把 iframe 设为 `pointer-events: none`，把拖拽转交工作台；它的监听器挂在 window **冒泡**阶段，且 dragenter 先检查 `defaultPrevented` | 前端在 `document` **捕获**阶段拦截只含 `Files` 的拖拽：`preventDefault()` 让 pre script 直接返回、`stopPropagation()` 让 dragover / drop 到不了 window 上的转发逻辑（否则会发 `drag` 消息再次禁用 iframe）；高亮与落盘在同一捕获入口复刻 |
 
 ### 4.4 XAML 渲染（踩得最深的一块）
 
@@ -117,7 +132,7 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-19T14:40:00+08:00 }
 | 探针硬编码排版值 → 测不到真配置 | 改为读真实配置换算后再断言 |
 | **测试要能变红才有意义** | 用变异测试证明：把 Ctrl 前置加回去 → 5 红；写错贡献键 → 4 红 |
 | 时间敏感断言会 flaky | 100 倍缩放时钟 + 5ms 轮询，机器一忙检查点就被"冲过去"；修法是把检查点往窗口里侧挪、容差放宽 |
-| 纯逻辑必须能脱离 `vscode` 运行 | 解析/格式化/排序/高亮全部不 import `vscode`，477 个用例因此能在纯 Node 里跑 |
+| 纯逻辑必须能脱离 `vscode` 运行 | 解析/格式化/排序/高亮全部不 import `vscode`，1059 个用例因此能在纯 Node 里跑 |
 
 ### 4.7 本机工具链（Windows 专项）
 

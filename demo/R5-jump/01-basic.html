@@ -56,11 +56,11 @@
 
 <hr>
 
-<h2>8. 对照：普通链接（不该被我们的改写碰到）</h2>
+<h2>8. 对照：普通链接</h2>
 <p><a href="https://code.visualstudio.com">https 外部链接</a> —— 期望交给系统浏览器。</p>
-<p><a href="targets/target-simple.md">相对链接指向 targets/target-simple.md</a> —— <strong>观察项</strong>：
-它会被 <code>&lt;base&gt;</code> 解析成 <code>vscode-webview://…</code>，而该 scheme 不在宿主白名单里，预计<strong>点不动</strong>。
-这是"HTML 视图不是 Web 服务器"的固有限制，不是缺陷。</p>
+<p><a href="targets/target-simple.md">相对链接指向 targets/target-simple.md</a> —— 期望在<strong>当前窗口</strong>打开目标文件。
+相对链接的解析由页面里的链接路由脚本完成：它读原始 <code>href</code> 送交扩展，不依赖
+<code>&lt;base&gt;</code> 解析出的 webview 资源 URL（那个 URL 是给图片 / 样式用的）。</p>
 
 <script src="../assets/html/js/demo.js"></script>
 <script>
