@@ -1,0 +1,144 @@
+html,
+body {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	background: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size, 13px);
+	overflow: hidden;
+}
+
+.wispkit-mmd-app {
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+}
+
+.wispkit-mmd-toolbar {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	background: var(--vscode-editorWidget-background, transparent);
+	border-bottom: 1px solid var(--vscode-editorWidget-border, rgba(128, 128, 128, 0.35));
+}
+
+.wispkit-mmd-file {
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 40%;
+}
+
+.wispkit-mmd-badge {
+	flex: 0 1 auto;
+	padding: 1px 9px;
+	border-radius: 10px;
+	font-size: 11px;
+	white-space: nowrap;
+	background: var(--vscode-badge-background, rgba(128, 128, 128, 0.2));
+	color: var(--vscode-badge-foreground, inherit);
+}
+
+.wispkit-mmd-spacer {
+	flex: 1 1 auto;
+}
+
+.wispkit-mmd-btn {
+	flex: 0 0 auto;
+	padding: 3px 12px;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	font: inherit;
+	font-size: 12px;
+	cursor: pointer;
+	color: var(--vscode-button-secondaryForeground, inherit);
+	background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.2));
+}
+
+.wispkit-mmd-btn:hover:not(:disabled) {
+	background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.3));
+}
+
+.wispkit-mmd-btn-primary {
+	color: var(--vscode-button-foreground, inherit);
+	background: var(--vscode-button-background, #0e639c);
+}
+
+.wispkit-mmd-btn-primary:hover:not(:disabled) {
+	background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.wispkit-mmd-btn:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.wispkit-mmd-banner {
+	flex: 0 0 auto;
+	padding: 5px 12px;
+	font-size: 12px;
+	line-height: 1.5;
+	color: var(--vscode-inputValidation-infoForeground, inherit);
+	background: var(--vscode-inputValidation-infoBackground, rgba(100, 150, 200, 0.12));
+	border-bottom: 1px solid var(--vscode-inputValidation-infoBorder, transparent);
+}
+
+.wispkit-mmd-stage {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: auto;
+	padding: 16px;
+	display: flex;
+	align-items: flex-start;
+	justify-content: center;
+}
+
+.wispkit-mmd-stage[data-mode="source"] {
+	align-items: stretch;
+	justify-content: flex-start;
+}
+
+/*
+ * 内置 Mermaid 预览脚本会把 .mermaid 包进 .mermaid-wrapper > .mermaid-content，
+ * 并用 transform 在 wrapper 里做水平居中（diagramManager.ts 的 centerContent：
+ * translate.x = (容器宽 - SVG 宽) / 2）。
+ *
+ * **不能**再给 wrapper 加 `display:flex; justify-content:center`：那个 transform
+ * 是按「内容按普通流排在左侧」算的，再让 flex 居中一次，整张图会多右移半个容器宽，
+ * 表现为「图靠右」。wrapper 占满整行即可，居中交给内置脚本。
+ */
+.wispkit-mmd-stage .mermaid-wrapper {
+	width: 100%;
+}
+
+.wispkit-mmd-source {
+	margin: 0;
+	padding: 12px 14px;
+	width: 100%;
+	box-sizing: border-box;
+	white-space: pre;
+	overflow: auto;
+	font-family: var(--vscode-editor-font-family, var(--vscode-font-family, monospace));
+	font-size: var(--vscode-editor-font-size, 13px);
+	line-height: 1.5;
+	tab-size: 4;
+	background: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.1));
+	border: 1px solid var(--vscode-editorWidget-border, rgba(128, 128, 128, 0.25));
+	border-radius: 4px;
+}
+
+.wispkit-mmd-foot {
+	flex: 0 0 auto;
+	padding: 3px 12px;
+	font-size: 11px;
+	opacity: 0.7;
+	border-top: 1px solid var(--vscode-editorWidget-border, rgba(128, 128, 128, 0.2));
+}
