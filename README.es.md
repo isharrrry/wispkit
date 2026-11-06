@@ -38,10 +38,10 @@ Instálala desde el [Visual Studio Marketplace](https://marketplace.visualstudio
 code --install-extension harrrry.wispkit
 ```
 
-O construye el VSIX localmente e instálalo (ajusta la ruta a tu propio `code.cmd`):
+O construye el VSIX localmente e instálalo:
 
 ```powershell
-& "D:\app\VSCodeEXE\bin\code.cmd" --install-extension .\wispkit-0.2.15.vsix --force
+code --install-extension .\wispkit-0.2.15.vsix --force
 ```
 
 La vista XAML distribuye su renderizador como binarios precompilados: `tools/xaml-render/bin/Release/net10.0-windows/` está versionado y se empaqueta en el VSIX como **dependencia de ejecución, no como artefacto de compilación**. No lo borres ni lo regeneres para publicar; recompílalo solo si cambias el código del renderizador:

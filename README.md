@@ -38,10 +38,10 @@ Install it from the [Visual Studio Marketplace](https://marketplace.visualstudio
 code --install-extension harrrry.wispkit
 ```
 
-Or build the VSIX locally and install it (point the path at your own `code.cmd`):
+Or build the VSIX locally and install it:
 
 ```powershell
-& "D:\app\VSCodeEXE\bin\code.cmd" --install-extension .\wispkit-0.2.15.vsix --force
+code --install-extension .\wispkit-0.2.15.vsix --force
 ```
 
 The XAML view ships its renderer as prebuilt binaries: `tools/xaml-render/bin/Release/net10.0-windows/` is committed and packaged into the VSIX as a **runtime dependency, not a build artifact**. Do not delete or regenerate it for a release; rebuild only after changing the renderer source:

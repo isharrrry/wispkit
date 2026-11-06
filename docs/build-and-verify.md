@@ -28,7 +28,7 @@ npm install
 npm run compile     # tsc + esbuild
 npm run lint        # eslint src
 npm test            # compile first, then mocha
-npm run package     # vsce package → wispkit-0.1.0.vsix
+npm run package     # vsce package → wispkit-0.2.15.vsix
 ```
 
 | Command | What it actually does |
@@ -170,18 +170,18 @@ npm run package
 | `demo/**` | demo data (about 5 MB) does not go into the package |
 | `panzoom.bak`, `contrib.bak` | historical backups |
 
-Current output: **170 content entries / 172 archive entries, about 1.71 MB** (`docs/` holds 25 Markdown documents alongside the three READMEs; the count grows as documentation is added).
+Current output: **173 content entries / 175 archive entries, about 1.73 MB** (`docs/` holds 25 Markdown documents alongside the three READMEs; the count grows as documentation is added).
 
 Installing locally:
 
 ```powershell
-& "D:\app\VSCodeEXE\bin\code.cmd" --install-extension .\wispkit-0.1.0.vsix --force
+code --install-extension .\wispkit-0.2.15.vsix --force
 ```
 
 After installing you **must reload the window** (or restart VS Code) for it to take effect. To verify the installation really updated, do not trust timestamps alone — read the installed files and confirm the change is inside:
 
 ```powershell
-$ext = "$env:USERPROFILE\.vscode\extensions\narnat.wispkit-0.1.0"
+$ext = "$env:USERPROFILE\.vscode\extensions\harrrry.wispkit-0.2.15"
 Select-String -Path "$ext\media\markdown.css" -Pattern 'overflow: clip' -Quiet
 ```
 

@@ -38,10 +38,10 @@ GitHub Actions CI 在每次 push 与 pull request 上跑同一套门禁：`npm c
 code --install-extension harrrry.wispkit
 ```
 
-也可以自行打包安装到本机 VS Code（把路径换成你的 `code.cmd`）：
+也可以自行打包安装到本机 VS Code：
 
 ```powershell
-& "D:\app\VSCodeEXE\bin\code.cmd" --install-extension .\wispkit-0.2.15.vsix --force
+code --install-extension .\wispkit-0.2.15.vsix --force
 ```
 
 XAML 视图的渲染器以预编译二进制随扩展分发：`tools/xaml-render/bin/Release/net10.0-windows/` 已入库并会打进 VSIX，**属于运行时依赖，不是构建产物**；发版时不要删除或重新生成，只有改了渲染器源码才需要重建：
