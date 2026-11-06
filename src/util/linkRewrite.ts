@@ -7,7 +7,7 @@
  * 绕经系统协议处理器（可能另起窗口）；改成 `command:` 则直连当前窗口。
  */
 
-const VSCODE_FILE_LINK = /^vscode:\/\/file\/(.+?)(?::(\d+))?$/;
+import { parseVscodeFileHrefParts } from './linkTarget';
 
 export interface OpenCommandArgs {
 	readonly resource: string;
@@ -29,20 +29,18 @@ export function fileUriFromPath(filePath: string): string {
  * 非 `vscode://file/` 形式返回 undefined（调用方保持原链接不动）。
  */
 export function rewriteVscodeFileLink(href: string): string | undefined {
-	const match = VSCODE_FILE_LINK.exec(href.trim());
-	if (!match) {
+	const parts = parseVscodeFileHrefParts(href);
+	if (!parts) {
 		return undefined;
 	}
 
-	const filePath = decodeURIComponent(match[1]);
-	const line = match[2] ? Number(match[2]) : undefined;
-	const args: OpenCommandArgs = line === undefined || !Number.isFinite(line) || line < 1
-		? { resource: fileUriFromPath(filePath) }
+	const args: OpenCommandArgs = parts.line === undefined
+		? { resource: fileUriFromPath(parts.path) }
 		: {
-			resource: fileUriFromPath(filePath),
+			resource: fileUriFromPath(parts.path),
 			selection: {
-				start: { line: line - 1, character: 0 },
-				end: { line: line - 1, character: 0 },
+				start: { line: parts.line - 1, character: 0 },
+				end: { line: parts.line - 1, character: 0 },
 			},
 		};
 

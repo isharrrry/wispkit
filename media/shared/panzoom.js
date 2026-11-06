@@ -8,6 +8,20 @@ export function createPanZoom(viewport, target, options = {}) {
 	const minScale = options.minScale ?? 0.05;
 	const maxScale = options.maxScale ?? 40;
 	const dragButton = options.dragButton ?? 'right';
+	/**
+	 * 'transform'：CSS `scale()` 缩放。位图（图片视图）用它 —— 放大到 3 倍以上还能切
+	 * `image-rendering: pixelated` 看清像素格。
+	 * 'box'：改 target 的 width / height 缩放。**矢量图必须用这个**：`scale()` 会把元素
+	 * 先栅格化成一层位图再拉伸（配合 `will-change: transform` 更明显），于是 mermaid
+	 * 的图放得越大越模糊；改布局尺寸才会让浏览器按矢量重新绘制。
+	 */
+	const scaleMode = options.scaleMode === 'box' ? 'box' : 'transform';
+	/** 缩放所依据的原始尺寸。矢量图的 viewBox 与屏幕上的布局尺寸往往差一个数量级，
+	 *  所以调用方可以显式给出，不要让这里去量 DOM（量到的可能是被压缩过的尺寸）。 */
+	const sizeOf = () => options.size?.() ?? {
+		width: target.naturalWidth || target.clientWidth,
+		height: target.naturalHeight || target.clientHeight,
+	};
 
 	const buttonIndex = dragButton === 'left' ? 0 : dragButton === 'middle' ? 1 : 2;
 
@@ -21,8 +35,18 @@ export function createPanZoom(viewport, target, options = {}) {
 	let lastY = 0;
 
 	const apply = () => {
-		target.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
-		target.style.imageRendering = scale >= 3 ? 'pixelated' : '';
+		if (scaleMode === 'box') {
+			const { width, height } = sizeOf();
+			if (width > 0 && height > 0) {
+				target.style.width = `${width * scale}px`;
+				target.style.height = `${height * scale}px`;
+			}
+			// 平移仍走 transform —— 位移不会触发重绘，也不会把内容栅格化
+			target.style.transform = `translate(${translateX}px, ${translateY}px)`;
+		} else {
+			target.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+			target.style.imageRendering = scale >= 3 ? 'pixelated' : '';
+		}
 		viewport.classList.toggle('has-transform', scale !== fitScale || translateX !== 0 || translateY !== 0);
 	};
 
@@ -44,8 +68,7 @@ export function createPanZoom(viewport, target, options = {}) {
 	};
 
 	const fit = () => {
-		const width = target.naturalWidth || target.clientWidth;
-		const height = target.naturalHeight || target.clientHeight;
+		const { width, height } = sizeOf();
 		if (!width || !height || !viewport.clientWidth || !viewport.clientHeight) {
 			return;
 		}

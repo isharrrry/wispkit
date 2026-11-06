@@ -134,3 +134,68 @@ describe('media/shared/panzoom', () => {
 		assert.strictEqual(image.style.imageRendering, 'pixelated');
 	});
 });
+
+const BOX_DOC = `<!DOCTYPE html><html><body>
+	<div id="viewport"><div id="stage"></div></div>
+</body></html>`;
+
+/** 矢量图（mermaid / drawio 的 svg）走 box 模式：缩放改布局尺寸，不写 `scale()`。 */
+function setupBox(options: { boxWidth?: number; boxHeight?: number } = {}) {
+	const dom = installDom(BOX_DOC);
+	const viewport: any = dom.window.document.getElementById('viewport')!;
+	const stage: any = dom.window.document.getElementById('stage')!;
+
+	Object.defineProperty(viewport, 'clientWidth', { value: 800 });
+	Object.defineProperty(viewport, 'clientHeight', { value: 600 });
+	viewport.getBoundingClientRect = () => ({
+		left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, x: 0, y: 0, toJSON: () => ({}),
+	});
+
+	const size = { width: options.boxWidth ?? 2000, height: options.boxHeight ?? 1000 };
+	const panZoom = createPanZoom(viewport, stage, {
+		scaleMode: 'box',
+		size: () => size,
+		wheelZoom: () => true,
+	});
+	return { dom, viewport, stage, panZoom };
+}
+
+describe('media/shared/panzoom：矢量图的 box 缩放模式', () => {
+	it('fit 后按比例改写宽高，且不出现 scale()（矢量重绘而非栅格拉伸）', () => {
+		const { stage, panZoom } = setupBox();
+		panZoom.fit();
+
+		// 2000×1000 放进 800×600 → 0.4
+		assert.strictEqual(stage.style.width, '800px');
+		assert.strictEqual(stage.style.height, '400px');
+		assert.ok(!/scale\(/.test(stage.style.transform), `box 模式不该写 scale()，实际 "${stage.style.transform}"`);
+	});
+
+	it('滚轮放大改的是布局宽高，transform 只负责平移', () => {
+		const { viewport, stage, panZoom } = setupBox();
+		panZoom.fit();
+		dispatchWheel(viewport, { deltaY: -100, clientX: 400, clientY: 300 });
+
+		assert.ok(Math.abs(panZoom.scale - 0.44) < 1e-9, `期望 0.44，实际 ${panZoom.scale}`);
+		assert.ok(Math.abs(parseFloat(stage.style.width) - 880) < 1e-6, `实际 width=${stage.style.width}`);
+		assert.ok(Math.abs(parseFloat(stage.style.height) - 440) < 1e-6, `实际 height=${stage.style.height}`);
+		assert.ok(!/scale\(/.test(stage.style.transform), `实际 "${stage.style.transform}"`);
+	});
+
+	it('平移仍然只写 translate()', () => {
+		const { viewport, stage, panZoom } = setupBox();
+		panZoom.fit();
+		dispatchMouse(viewport, 'pointerdown', { button: 2, clientX: 100, clientY: 100, pointerId: 4 });
+		dispatchMouse(viewport, 'pointermove', { clientX: 140, clientY: 120, pointerId: 4 });
+
+		assert.deepStrictEqual(parseTranslate(stage), { x: 40, y: 20 });
+	});
+
+	it('小图不放大（fit 上限 1，宽高回到原始尺寸）', () => {
+		const { stage, panZoom } = setupBox({ boxWidth: 200, boxHeight: 100 });
+		panZoom.fit();
+
+		assert.strictEqual(stage.style.width, '200px');
+		assert.strictEqual(stage.style.height, '100px');
+	});
+});

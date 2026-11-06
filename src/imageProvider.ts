@@ -1,7 +1,12 @@
 import * as vscode from 'vscode';
 import { readImageViewConfig } from './config';
 import { renderImagePage } from './image/page';
+import { imageContentSecurityPolicy } from './media/csp';
+import { fileExtension } from './media/formats';
+import { collectMediaResourceRoots, handleMediaHostMessage } from './media/webview';
 import { generateNonce } from './util/nonce';
+
+export { imageContentSecurityPolicy } from './media/csp';
 
 export const IMAGE_VIEW_TYPE = 'wispkit.image';
 
@@ -47,8 +52,12 @@ export class ImageEditorProvider implements vscode.CustomEditorProvider<vscode.C
 		webview.options = {
 			enableScripts: true,
 			enableForms: false,
-			localResourceRoots: collectImageResourceRoots(this.context, document.uri),
+			localResourceRoots: collectMediaResourceRoots(this.context, document.uri),
 		};
+
+		webview.onDidReceiveMessage(message => {
+			handleMediaHostMessage(document.uri, message);
+		});
 
 		webview.html = renderImagePage({
 			title: document.uri.path.split('/').pop() ?? 'Image',
@@ -58,6 +67,7 @@ export class ImageEditorProvider implements vscode.CustomEditorProvider<vscode.C
 			runtimeScript: webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', 'dist', 'image.js')).toString(),
 			runtimeStyle: webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', 'image.css')).toString(),
 			config: readImageViewConfig(),
+			format: fileExtension(document.uri.path),
 		});
 	}
 
@@ -91,23 +101,5 @@ export class ImageEditorProvider implements vscode.CustomEditorProvider<vscode.C
  * localResourceRoots 覆盖到它时才会被 webview 放行 —— 只写 extensionUri 会让
  * 整页空白（图被拒载）。父目录覆盖同目录引用，工作区目录覆盖跨目录引用。
  */
-export function collectImageResourceRoots(context: vscode.ExtensionContext, documentUri: vscode.Uri): vscode.Uri[] {
-	const roots: vscode.Uri[] = [context.extensionUri];
+export const collectImageResourceRoots = collectMediaResourceRoots;
 
-	try {
-		roots.push(vscode.Uri.joinPath(documentUri, '..'));
-	} catch {
-		// untitled: 等没有父目录的 scheme
-	}
-
-	for (const folder of vscode.workspace.workspaceFolders ?? []) {
-		roots.push(folder.uri);
-	}
-
-	return roots;
-}
-
-/** 图片视图的 CSP：`img-src` 必须放行 `data:`（data URI 图片），脚本只认 nonce。 */
-export function imageContentSecurityPolicy(cspSource: string, nonce: string): string {
-	return `default-src 'none'; img-src data: ${cspSource}; connect-src ${cspSource}; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';`;
-}

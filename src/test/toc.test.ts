@@ -64,6 +64,43 @@ describe('media/shared/toc', () => {
 		assert.deepStrictEqual(Array.from(nav.querySelectorAll('a')).map(a => a.textContent), ['Alpha', 'Beta']);
 	});
 
+	it('未指定 depth 时收录 Markdown 规范支持的全部六级标题（h1–h6）', () => {
+		const dom = installDom(`<!DOCTYPE html><html><body>
+			<nav id="wispkit-toc"></nav><main id="wispkit-content">
+				<h1 id="h1">H1</h1><h2 id="h2">H2</h2><h3 id="h3">H3</h3>
+				<h4 id="h4">H4</h4><h5 id="h5">H5</h5><h6 id="h6">H6</h6>
+			</main></body></html>`);
+		const content = dom.window.document.getElementById('wispkit-content')!;
+		const nav = dom.window.document.getElementById('wispkit-toc')!;
+		const toc = createTableOfContents({ content, nav, enabled: true });
+		toc.rebuild();
+		assert.deepStrictEqual(
+			Array.from(nav.querySelectorAll('a')).map(a => a.textContent),
+			['H1', 'H2', 'H3', 'H4', 'H5', 'H6'],
+		);
+		assert.strictEqual(toc.headingCount, 6);
+	});
+
+	it('depth=6（默认上限）时 h4 进目录并挂到 h3 下面', () => {
+		const { nav } = setup(6);
+		const texts = Array.from(nav.querySelectorAll('a')).map(a => a.textContent);
+		assert.deepStrictEqual(texts, ['Alpha', 'Alpha One', 'Alpha One One', 'Too deep', 'Alpha Two', 'Beta']);
+
+		const alphaOneItem = nav.querySelectorAll('li')[1];
+		assert.strictEqual(alphaOneItem.querySelector('a')!.textContent, 'Alpha One');
+		const deepList = Array.from(alphaOneItem.children).find(child => child.tagName === 'UL')!;
+		assert.deepStrictEqual(
+			Array.from(deepList.children).map(item => item.querySelector('a')!.textContent),
+			['Alpha One One'],
+		);
+		const alphaOneOne = deepList.children[0];
+		const deeperList = Array.from(alphaOneOne.children).find(child => child.tagName === 'UL')!;
+		assert.deepStrictEqual(
+			Array.from(deeperList.children).map(item => item.querySelector('a')!.textContent),
+			['Too deep'],
+		);
+	});
+
 	it('按层级嵌套：h2 落在所属 h1 的列表里，h3 再深一层', () => {
 		const { nav } = setup(3);
 		const alphaItem = nav.querySelector('li')!;
@@ -340,5 +377,85 @@ describe('media/shared/toc', () => {
 
 		splitter!.dispatchEvent(pointerEvent(dom, 'dblclick'));
 		assert.strictEqual(nav.style.width, '240px');
+	});
+});
+
+describe('media/shared/toc 滚动高亮与位置缓存', () => {
+	const rect = (top: number) => ({
+		top, left: 0, right: 0, bottom: top, width: 0, height: 0, x: 0, y: top,
+		toJSON: () => ({}),
+	});
+
+	it('滚动时用缓存位置二分定位当前标题，并随滚动切换', async () => {
+		const { dom, content, nav } = setup(6);
+		const headings = Array.from(content.querySelectorAll('h1, h2, h3, h4'));
+		assert.strictEqual(headings.length, 6);
+		const tops = [0, 300, 600, 900, 1200, 1500];
+		let scrollTop = 0;
+
+		Object.defineProperty(content, 'scrollTop', {
+			configurable: true,
+			get: () => scrollTop,
+			set: value => { scrollTop = value; },
+		});
+		Object.defineProperty(content, 'scrollHeight', { configurable: true, value: 5000 });
+		Object.defineProperty(content, 'clientHeight', { configurable: true, value: 600 });
+		Object.defineProperty(content, 'getBoundingClientRect', { configurable: true, value: () => rect(0) });
+		headings.forEach((element, index) => {
+			Object.defineProperty(element, 'getBoundingClientRect', {
+				configurable: true,
+				value: () => rect(tops[index] - scrollTop),
+			});
+		});
+
+		const tick = () => new Promise(resolve => setTimeout(resolve, 30));
+		content.dispatchEvent(new dom.window.Event('scroll'));
+		await tick();
+		assert.strictEqual(nav.querySelector('.wispkit-toc-active')!.textContent, 'Alpha');
+
+		scrollTop = 650; // +24 偏移后落在第 3 个标题（top 600）
+		content.dispatchEvent(new dom.window.Event('scroll'));
+		await tick();
+		assert.strictEqual(nav.querySelector('.wispkit-toc-active')!.textContent, 'Alpha One One');
+
+		scrollTop = 1800; // y=1824，越过最后一个标题（top 1500）
+		content.dispatchEvent(new dom.window.Event('scroll'));
+		await tick();
+		assert.strictEqual(nav.querySelector('.wispkit-toc-active')!.textContent, 'Beta');
+	});
+
+	it('invalidatePositions 后可重新按新布局计算高亮', async () => {
+		const { dom, content, nav, toc } = setup(6);
+		const headings = Array.from(content.querySelectorAll('h1, h2, h3, h4'));
+		let scrollTop = 0;
+		let tops = [0, 300, 600, 900, 1200, 1500];
+
+		Object.defineProperty(content, 'scrollTop', {
+			configurable: true,
+			get: () => scrollTop,
+			set: value => { scrollTop = value; },
+		});
+		Object.defineProperty(content, 'scrollHeight', { configurable: true, value: 5000 });
+		Object.defineProperty(content, 'clientHeight', { configurable: true, value: 600 });
+		Object.defineProperty(content, 'getBoundingClientRect', { configurable: true, value: () => rect(0) });
+		headings.forEach((element, index) => {
+			Object.defineProperty(element, 'getBoundingClientRect', {
+				configurable: true,
+				value: () => rect(tops[index] - scrollTop),
+			});
+		});
+
+		const tick = () => new Promise(resolve => setTimeout(resolve, 30));
+		content.dispatchEvent(new dom.window.Event('scroll'));
+		await tick();
+		assert.strictEqual(nav.querySelector('.wispkit-toc-active')!.textContent, 'Alpha');
+
+		// 模拟缩放 / 图片加载把布局整体换了：标题位置翻倍，缓存必须能作废。
+		tops = tops.map(value => value * 2);
+		toc.invalidatePositions();
+		scrollTop = 1850; // y=1874 → 第 4 个（top 1800）
+		content.dispatchEvent(new dom.window.Event('scroll'));
+		await tick();
+		assert.strictEqual(nav.querySelector('.wispkit-toc-active')!.textContent, 'Too deep');
 	});
 });

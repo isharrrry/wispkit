@@ -12,8 +12,18 @@ describe('media/shared/contextmenu', () => {
 		return { dom, doc, menu: createContextMenu({ document: doc }) };
 	}
 
-	function pointerDown(doc: Document, target: Element) {
-		target.dispatchEvent(new (doc.defaultView as any).MouseEvent('pointerdown', { bubbles: true, cancelable: true }));
+	function pointerDown(doc: Document, target: Element, init: Record<string, unknown> = {}) {
+		target.dispatchEvent(new (doc.defaultView as any).MouseEvent('pointerdown', { bubbles: true, cancelable: true, ...init }));
+	}
+
+	/** jsdom 不做布局，getBoundingClientRect 恒为 0；这里给菜单一个假矩形验证坐标兜底。 */
+	function stubMenuRect(doc: Document, rect: { left: number; top: number; right: number; bottom: number }) {
+		const element = doc.querySelector('.wispkit-menu') as HTMLElement;
+		element.getBoundingClientRect = () => ({
+			...rect, width: rect.right - rect.left, height: rect.bottom - rect.top,
+			x: rect.left, y: rect.top, toJSON: () => rect,
+		}) as DOMRect;
+		return element;
 	}
 
 	function pressKey(doc: Document, key: string) {
@@ -73,6 +83,47 @@ describe('media/shared/contextmenu', () => {
 		assert.strictEqual(menu.isOpen, true);
 	});
 
+	it('菜单内部滚动（滚轮 / 拖滚动条）不会关闭菜单', () => {
+		const { doc, menu } = setup();
+		menu.open([{ label: 'A', run: () => undefined }], 0, 0);
+		const element = doc.querySelector('.wispkit-menu') as HTMLElement;
+		// scroll 不冒泡，document 上的捕获监听器仍会收到 —— 但目标在菜单内，必须保持打开
+		element.dispatchEvent(new (doc.defaultView as any).Event('scroll'));
+		assert.strictEqual(menu.isOpen, true);
+		assert.ok(doc.querySelector('.wispkit-menu'));
+	});
+
+	it('菜单外的滚动仍然关闭菜单', () => {
+		const { doc, menu } = setup();
+		menu.open([{ label: 'A', run: () => undefined }], 0, 0);
+		doc.getElementById('content')!.dispatchEvent(new (doc.defaultView as any).Event('scroll'));
+		assert.strictEqual(menu.isOpen, false);
+	});
+
+	it('document 滚动关闭菜单', () => {
+		const { doc, menu } = setup();
+		menu.open([{ label: 'A', run: () => undefined }], 0, 0);
+		doc.dispatchEvent(new (doc.defaultView as any).Event('scroll'));
+		assert.strictEqual(menu.isOpen, false);
+	});
+
+	it('滚动条按下事件的 target 不在菜单内时，坐标在菜单矩形内也不关闭', () => {
+		const { doc, menu } = setup();
+		menu.open([{ label: 'A', run: () => undefined }], 0, 0);
+		stubMenuRect(doc, { left: 100, top: 100, right: 300, bottom: 300 });
+		// 原生滚动条不是 DOM 节点，按下时 target 可能落到 body / document
+		pointerDown(doc, doc.body, { clientX: 150, clientY: 150 });
+		assert.strictEqual(menu.isOpen, true);
+	});
+
+	it('菜单矩形外的按下仍然关闭菜单', () => {
+		const { doc, menu } = setup();
+		menu.open([{ label: 'A', run: () => undefined }], 0, 0);
+		stubMenuRect(doc, { left: 100, top: 100, right: 300, bottom: 300 });
+		pointerDown(doc, doc.body, { clientX: 500, clientY: 500 });
+		assert.strictEqual(menu.isOpen, false);
+	});
+
 	it('坐标超出视口时被夹回可视区', () => {
 		const { dom, doc, menu } = setup();
 		const maxX = (doc.documentElement.clientWidth || dom.window.innerWidth) - 4;
@@ -86,6 +137,16 @@ describe('media/shared/contextmenu', () => {
 		assert.strictEqual(menu.open([], 0, 0), false);
 		assert.strictEqual(menu.isOpen, false);
 		assert.strictEqual(doc.querySelector('.wispkit-menu'), null);
+	});
+
+	it('菜单项可带图标（sprite 引用），labels 仍只取文字', () => {
+		const { doc, menu } = setup();
+		menu.open([{ label: '重命名', icon: 'rename', run: () => undefined }], 0, 0);
+		assert.deepStrictEqual(menu.labels, ['重命名']);
+		assert.deepStrictEqual(menu.icons, ['#wispkit-icon-rename']);
+		const use = doc.querySelector('.wispkit-menu-item use') as Element;
+		assert.ok(use, '应当生成 <use> 引用 sprite');
+		assert.strictEqual(use.getAttribute('href'), '#wispkit-icon-rename');
 	});
 
 	it('分隔线只渲染成分隔元素，不计入菜单项', () => {

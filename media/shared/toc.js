@@ -47,6 +47,10 @@ export function createTableOfContents(options) {
 	const splitter = options.splitter ?? null;
 	const layout = nav.parentElement ?? null;
 	const storage = options.storage ?? null;
+	/** 观察它的尺寸变化来作废标题位置缓存（正文层；没有时退回正文容器）。 */
+	const resizeTarget = options.resizeTarget ?? content;
+	/** 正文是否处于大文档虚拟化（`content-visibility: auto`），决定跳转后要不要补正。 */
+	const isVirtualized = typeof options.virtualized === 'function' ? options.virtualized : () => false;
 
 	const readSetting = (key, fallback) => {
 		try {
@@ -64,7 +68,8 @@ export function createTableOfContents(options) {
 		}
 	};
 
-	let depth = options.depth ?? 3;
+	// Markdown 规范只有六级标题（h1–h6），默认全部收录；`wispkit.toc.depth` 可再收窄。
+	let depth = options.depth ?? 6;
 	let enabled = options.enabled !== false;
 	let headings = [];
 	let byId = new Map();
@@ -116,21 +121,53 @@ export function createTableOfContents(options) {
 		}
 	};
 
+	/**
+	 * 标题在「正文滚动坐标」里的位置缓存。
+	 *
+	 * 原来每帧对**所有标题**调 `getBoundingClientRect()`：400 KB、上千标题的文档里
+	 * 每次滚动都要触发一次全文档布局，点目录跳转后尤其明显。缓存之后每帧只做一次
+	 * 二分查找；只有尺寸真的变了才重新量一遍。缓存失效来源：
+	 * - 重建 / 缩放 / 窗口或正文尺寸变化（ResizeObserver）；
+	 * - 老引擎没有 ResizeObserver 时，每 500 ms 在滚动里核对一次 scrollHeight 兜底。
+	 */
+	let positions = null;
+	let positionScrollHeight = -1;
+	let lastHeightCheck = 0;
+
+	const measurePositions = () => {
+		if (!headings.length) {
+			positions = [];
+			return;
+		}
+		// 换算到「scrollTop = 0 时的视觉位置」：rect.top - 容器 rect.top + scrollTop。
+		// CSS zoom 作用在内层正文层上，scrollTop 与 rect 的差值都是放大后的像素，单位一致。
+		const base = content.getBoundingClientRect().top - content.scrollTop;
+		positions = headings.map(entry => entry.element.getBoundingClientRect().top - base);
+		positionScrollHeight = content.scrollHeight;
+	};
+
 	const updateActive = () => {
 		if (headings.length === 0) {
 			setActive(null);
 			return;
 		}
-		const contentTop = content.getBoundingClientRect().top;
-		let best = headings[0];
-		for (const heading of headings) {
-			if (heading.element.getBoundingClientRect().top - contentTop <= ACTIVE_OFFSET_PX) {
-				best = heading;
+		if (!positions || positions.length !== headings.length) {
+			measurePositions();
+		}
+		const y = content.scrollTop + ACTIVE_OFFSET_PX;
+		let low = 0;
+		let high = positions.length - 1;
+		let best = 0;
+		while (low <= high) {
+			const mid = (low + high) >> 1;
+			if (positions[mid] <= y) {
+				best = mid;
+				low = mid + 1;
 			} else {
-				break;
+				high = mid - 1;
 			}
 		}
-		setActive(best.link);
+		setActive(headings[best]?.link ?? null);
 	};
 
 	const onScroll = () => {
@@ -139,9 +176,48 @@ export function createTableOfContents(options) {
 		}
 		frame = requestAnimationFrame(() => {
 			frame = 0;
+			// scrollHeight 变了 = 图片 / mermaid / 虚拟化块改变了布局；位置缓存要重算。
+			// 每秒最多查一次，避免每帧强制布局。
+			const now = Date.now();
+			if (positions && now - lastHeightCheck > 500) {
+				lastHeightCheck = now;
+				if (content.scrollHeight !== positionScrollHeight) {
+					positions = null;
+				}
+			}
 			updateActive();
 		});
 	};
+
+	/** 缩放 / 正文重建后由调用方作废缓存；下一次滚动或 reveal 自动重算。 */
+	const invalidatePositions = () => {
+		positions = null;
+		positionScrollHeight = -1;
+	};
+
+	/*
+	 * 只在**宽度**变化时作废缓存（窗口缩放、目录栏拖宽改变正文宽度）。
+	 * 高度变化在虚拟化文档里几乎每次滚动都会发生（块从估算高度换成真实高度），
+	 * 若跟着作废，就退化成每帧重新量所有标题 —— 正是这次要消掉的卡顿。
+	 * 高度引起的真实偏移变化由上面的 500 ms scrollHeight 兜底检查接管。
+	 */
+	let resizeObserver = null;
+	let observedWidth = null;
+	const ResizeObserverCtor = content.ownerDocument?.defaultView?.ResizeObserver ?? null;
+	if (typeof ResizeObserverCtor === 'function' && resizeTarget) {
+		resizeObserver = new ResizeObserverCtor(entries => {
+			const width = entries[0]?.contentRect?.width ?? null;
+			if (width === null) {
+				invalidatePositions();
+				return;
+			}
+			if (observedWidth !== null && Math.abs(width - observedWidth) > 0.5) {
+				invalidatePositions();
+			}
+			observedWidth = width;
+		});
+		resizeObserver.observe(resizeTarget);
+	}
 
 	const setBranchCollapsed = (id, collapsed) => {
 		const entry = byId.get(id);
@@ -185,6 +261,7 @@ export function createTableOfContents(options) {
 		headings = [];
 		byId = new Map();
 		collapsedIds.clear();
+		invalidatePositions();
 		setActive(null);
 
 		if (!enabled) {
@@ -275,6 +352,61 @@ export function createTableOfContents(options) {
 		updateActive();
 	};
 
+	let revealToken = 0;
+
+	/**
+	 * 用户一旦自己滚动 / 点击正文，就放弃正在进行的补正 —— 否则虚拟化文档里
+	 * 最长 1.2 s 的追帧会把用户刚滚出去的位置又拽回标题。
+	 */
+	const cancelReveal = () => {
+		revealToken += 1;
+	};
+	content.addEventListener('wheel', cancelReveal, { passive: true });
+	content.addEventListener('pointerdown', cancelReveal, { passive: true });
+	content.addEventListener('keydown', cancelReveal);
+
+	/**
+	 * 虚拟化文档跳转后的补正。
+	 *
+	 * `content-visibility: auto` 的元素在视口外只有 `contain-intrinsic-size` 的估算高度，
+	 * 第一次滚动到的位置可能差几十到几百像素；目标块被真正渲染后高度变了，位置也跟着变。
+	 * 这里按帧补滚，直到连续 3 帧差值都小于 1px（最长 1.2 s）—— 只对虚拟化文档生效，
+	 * 普通文档一次就准，没必要多跑布局。
+	 */
+	const settleReveal = (element, scroller) => {
+		if (!isVirtualized()) {
+			return;
+		}
+		const view = element.ownerDocument?.defaultView;
+		if (!view?.requestAnimationFrame) {
+			return;
+		}
+		const token = ++revealToken;
+		const startedAt = Date.now();
+		let stableFrames = 0;
+		const step = () => {
+			if (token !== revealToken || !element.isConnected) {
+				return;
+			}
+			const delta = element.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+			if (Math.abs(delta) > 1) {
+				scroller.scrollTop += delta;
+				invalidatePositions();
+				stableFrames = 0;
+			} else {
+				stableFrames += 1;
+			}
+			// 虚拟化块从「估算高度」变成真实高度的过程可能持续多帧（尤其是缩放后
+			// 表格 / 图高度全部变化），3 帧不够；以「连续 3 帧差值 < 1px」为收敛条件，
+			// 最长追 1.2 s。只量目标一个元素，代价远低于一次全量布局。
+			const elapsed = Date.now() - startedAt;
+			if (stableFrames < 3 && elapsed < 1200) {
+				view.requestAnimationFrame(step);
+			}
+		};
+		view.requestAnimationFrame(step);
+	};
+
 	/** 定位到某个标题：展开祖先、滚动正文、高亮目录项、让目录项自身可见。 */
 	const reveal = id => {
 		const entry = byId.get(id);
@@ -285,8 +417,10 @@ export function createTableOfContents(options) {
 		// 只滚真正的滚动区（正文容器），绝不滚整个文档 —— 见 scrollableAncestor 的说明。
 		const scroller = scrollableAncestor(entry.element);
 		if (scroller) {
+			// 只量目标这一个元素；不需要为了滚动重建整张位置表。
 			const delta = entry.element.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
 			scroller.scrollTop += delta;
+			settleReveal(entry.element, scroller);
 		} else {
 			entry.element.scrollIntoView?.({ block: 'start', behavior: 'auto' });
 		}
@@ -392,8 +526,13 @@ export function createTableOfContents(options) {
 		get navWidth() {
 			return width;
 		},
+		invalidatePositions,
 		dispose() {
 			content.removeEventListener('scroll', onScroll);
+			content.removeEventListener('wheel', cancelReveal);
+			content.removeEventListener('pointerdown', cancelReveal);
+			content.removeEventListener('keydown', cancelReveal);
+			resizeObserver?.disconnect?.();
 			if (frame) {
 				cancelAnimationFrame(frame);
 			}

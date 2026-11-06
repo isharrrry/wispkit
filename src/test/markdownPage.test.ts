@@ -2,8 +2,12 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MARKDOWN_ICON_NAMES, markdownIconSprite, renderMarkdownPage } from '../markdown/page';
+import { DEFAULT_MARKDOWN_THEME_MODE, normalizeMarkdownThemeMode } from '../markdown/theme';
 import { strictContentSecurityPolicy } from '../util/csp';
 import { installDom, loadMediaModule } from './helpers/dom';
+
+const pageZoomPure = loadMediaModule('media/shared/pagezoom.js');
+const findPure = loadMediaModule('media/shared/find.js');
 
 const CSP_SOURCE = 'vscode-webview://abc123';
 
@@ -131,11 +135,98 @@ describe('markdown/page', () => {
 		}
 	});
 
+	it('工具栏图标自带 width/height 兜底：外部样式表到达前不会按 SVG 默认 300×150 撑开', () => {
+		const html = basePage();
+		const icons = [...html.matchAll(/<svg class="wispkit-btn-icon"[^>]*>/g)].map(match => match[0]);
+		assert.ok(icons.length >= 8, `应当有多个工具栏图标，实际 ${icons.length}`);
+		for (const icon of icons) {
+			assert.ok(/width="(14|10)"/.test(icon), `图标缺少 width 属性：${icon}`);
+			assert.ok(/height="(14|10)"/.test(icon), `图标缺少 height 属性：${icon}`);
+		}
+		const thumb = /<span class="wispkit-switch-thumb">\s*<svg[^>]*>/.exec(html);
+		assert.ok(thumb && /width="10"/.test(thumb[0]) && /height="10"/.test(thumb[0]),
+			'滑块里的图标必须按 10px 兜底（CSS 加载前也不能变大）');
+	});
+
+	it('首屏关键样式内联在外部样式表之前，只负责把图标/工具栏形状定住', () => {
+		const html = basePage();
+		const critical = html.indexOf('<style>.wispkit-icon-sprite{position:absolute');
+		assert.ok(critical >= 0, 'head 里必须有内联关键样式');
+		const firstLink = html.indexOf('<link rel="stylesheet"');
+		assert.ok(firstLink >= 0);
+		assert.ok(critical < firstLink, '内联关键样式必须排在外部样式表之前，外部表才能按同特异性覆盖它');
+		const block = /<style>([\s\S]*?)<\/style>/.exec(html);
+		assert.ok(block);
+		assert.ok(block![1].includes('.wispkit-btn-icon{display:block;flex:none;width:14px;height:14px}'));
+		assert.ok(block![1].includes('.wispkit-switch-thumb .wispkit-btn-icon{width:10px;height:10px}'));
+		assert.ok(block![1].includes('.wispkit-btn[hidden],.wispkit-dirty[hidden]{display:none}'),
+			'关键样式里的 display 会盖掉 UA 的 [hidden]，必须显式补回，否则保存按钮会闪一下');
+	});
+
 	it('图标 sprite 用 currentColor，颜色自动跟随主题', () => {
 		const sprite = markdownIconSprite();
 		assert.ok(sprite.includes('stroke="currentColor"'), '必须用 currentColor，否则浅/深主题下颜色不对');
 		assert.ok(sprite.includes('fill="none"'));
 		assert.ok(sprite.includes('width="0"') && sprite.includes('height="0"'), 'sprite 自身不应占位');
+	});
+
+	it('主题三态：三个图标按钮从左到右为浅色 / 跟随主题 / 深色，默认选中第二个', () => {
+		const html = basePage();
+		assert.ok(html.includes('id="wispkit-theme"'), '工具栏必须有主题切换控件');
+		const modes = [...html.matchAll(/data-theme-mode="([^"]+)"/g)].map(match => match[1]);
+		assert.deepStrictEqual(modes, ['light', 'auto', 'dark'], '位置即语义：左侧浅色、中间跟随主题、右侧深色');
+		const pressed = [...html.matchAll(/data-theme-mode="([^"]+)" aria-pressed="([^"]+)"/g)]
+			.filter(match => match[2] === 'true')
+			.map(match => match[1]);
+		assert.deepStrictEqual(pressed, ['auto'], '默认必须是第二个图标（跟随主题），而不是浅色或深色');
+		for (const icon of ['sun', 'monitor', 'moon']) {
+			assert.ok(html.includes(`id="wispkit-icon-${icon}"`), `sprite 里缺少主题图标 ${icon}`);
+			assert.ok(html.includes(`href="#wispkit-icon-${icon}"`), `主题按钮缺少 ${icon} 图标引用`);
+		}
+	});
+
+	it('主题模式写进 <html>：首屏就是目标明暗，不会先闪一下当前主题再跳', () => {
+		const auto = basePage();
+		assert.ok(auto.includes('<html lang="en" class="wispkit-theme-auto" data-wispkit-theme="auto"'), '默认跟随主题');
+		const light = basePage({ themeMode: 'light' });
+		assert.ok(light.includes('class="wispkit-theme-light" data-wispkit-theme="light"'));
+		assert.ok(light.includes('data-theme-mode="light" aria-pressed="true"'), '初始强制浅色时选中态要跟着走');
+		assert.ok(!light.includes('data-theme-mode="auto" aria-pressed="true"'));
+		const dark = basePage({ themeMode: 'dark' });
+		assert.ok(dark.includes('class="wispkit-theme-dark" data-wispkit-theme="dark"'));
+	});
+
+	it('Mermaid 主题下拉框：六个常见主题、默认跟随主题，初值可被服务端指定', () => {
+		const html = basePage();
+		assert.ok(html.includes('id="wispkit-mermaid-theme"'), '工具栏必须有 Mermaid 主题下拉框');
+		const values = [...html.matchAll(/<option value="([^"]+)"/g)].map(match => match[1]);
+		assert.deepStrictEqual(values, ['vscode', 'default', 'forest', 'dark', 'neutral', 'base']);
+		assert.ok(
+			html.includes('data-wispkit-mermaid-theme="vscode"'),
+			'首屏就要把 Mermaid 主题写给前端，避免先按默认主题画一次再跳',
+		);
+		assert.ok(/<option value="vscode" selected>/.test(html), '默认选中「跟随主题」');
+		assert.ok(html.includes('Mermaid'), '下拉框要有可见标签，否则不知道是调什么的');
+
+		const forest = basePage({ mermaidTheme: 'forest' });
+		assert.ok(forest.includes('data-wispkit-mermaid-theme="forest"'));
+		assert.ok(/<option value="forest" selected>/.test(forest));
+		assert.ok(!/<option value="vscode" selected>/.test(forest), '只能有一个选中项');
+	});
+
+	it('强制主题的调色板用 !important 覆盖宿主行内变量（否则切换完全无效）', () => {
+		const css = fs.readFileSync(path.join(__dirname, '..', '..', 'media', 'markdown.css'), 'utf8');
+		for (const selector of ['html.wispkit-theme-light', 'html.wispkit-theme-dark']) {
+			assert.ok(css.includes(selector), `CSS 缺少 ${selector}`);
+		}
+		assert.ok(/html\.wispkit-theme-light\s*\{[^}]*color-scheme:\s*light/.test(css), '浅色要声明 color-scheme，原生滚动条/表单控件才跟着变');
+		assert.ok(/html\.wispkit-theme-dark\s*\{[^}]*color-scheme:\s*dark/.test(css));
+		assert.ok(css.includes('--vscode-editor-background: #ffffff !important'), '浅色背景变量');
+		assert.ok(css.includes('--vscode-editor-background: #1e1e1e !important'), '深色背景变量');
+		assert.ok(
+			css.includes(".wispkit-theme-option[aria-pressed='true']"),
+			'三态选中态只看 aria-pressed（脚本只改属性，不碰 class）',
+		);
 	});
 
 	it('段落编辑模式所需元素齐备，保存按钮默认隐藏', () => {
@@ -370,9 +461,42 @@ describe('media/shared/paragraph.js 块元素筛选', () => {
 
 /* ---------------------------------------------------------------- 前端：段落就地编辑 */
 
+interface SetupPageOptions {
+	/** 服务端写进 `<html data-wispkit-theme>` 的初始模式。 */
+	themeMode?: 'light' | 'auto' | 'dark';
+	/** 模拟 webview 宿主已经写在 body 上的明暗类别。 */
+	hostThemeKind?: string;
+	/** 模拟 Chromium 105+ 的 CSS Custom Highlight API（jsdom 没有）。 */
+	highlightApi?: boolean;
+}
+
 /** 用真实生成的页面装进 jsdom，再执行真实的前端模块（storage 走宿主 state 这条回退通路）。 */
-function setupMarkdownView(initialState: Record<string, string> = {}, bodyHtml: string = BODY_HTML) {
-	const dom = installDom(basePage({ bodyHtml }));
+function setupMarkdownView(
+	initialState: Record<string, string> = {},
+	bodyHtml: string = BODY_HTML,
+	page: SetupPageOptions = {},
+) {
+	const dom = installDom(basePage({ bodyHtml, themeMode: page.themeMode }));
+	if (page.hostThemeKind) {
+		dom.window.document.body.classList.add(page.hostThemeKind);
+		dom.window.document.body.dataset.vscodeThemeKind = page.hostThemeKind;
+	}
+	let highlightRegistry: Map<string, any> | null = null;
+	if (page.highlightApi) {
+		// 真实 Chromium 里 CSS.highlights 是 HighlightRegistry（有 set/get/delete），
+		// Highlight 构造器接收若干 Range。这里的替身只保留测试需要的表面。
+		highlightRegistry = new Map<string, any>();
+		(dom.window.CSS as any).highlights = {
+			set: (name: string, value: any) => highlightRegistry!.set(name, value),
+			get: (name: string) => highlightRegistry!.get(name),
+			delete: (name: string) => highlightRegistry!.delete(name),
+		};
+		(dom.window as any).Highlight = class {
+			constructor(...ranges: any[]) {
+				(this as any).ranges = ranges;
+			}
+		};
+	}
 	const state = { ...initialState };
 	const messages: any[] = [];
 	(globalThis as unknown as { acquireVsCodeApi?: unknown }).acquireVsCodeApi = () => ({
@@ -391,6 +515,9 @@ function setupMarkdownView(initialState: Record<string, string> = {}, bodyHtml: 
 		messages,
 		api: (dom.window as unknown as { __wispkitSelftest: any }).__wispkitSelftest,
 		content: dom.window.document.getElementById('wispkit-content')!,
+		/** 正文层：缩放与虚拟化都挂在它上面；第三方脚本替换块也发生在这棵树里。 */
+		layer: dom.window.document.getElementById('wispkit-zoom-layer')!,
+		highlightRegistry,
 		/** 模拟宿主推回消息（只读源码 / 重渲染结果）。 */
 		send: (message: any) => {
 			dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: message }));
@@ -728,6 +855,275 @@ describe('media/markdown.js 目录栏位置', () => {
 	});
 });
 
+describe('markdown/theme 主题模式', () => {
+	it('只认 light / auto / dark，其余（含大小写变体）一律回落到跟随主题', () => {
+		assert.strictEqual(DEFAULT_MARKDOWN_THEME_MODE, 'auto');
+		for (const mode of ['light', 'auto', 'dark'] as const) {
+			assert.strictEqual(normalizeMarkdownThemeMode(mode), mode);
+		}
+		for (const bad of [undefined, null, '', 'Light', 'system', 'vscode-dark', 0, 1, {}, []]) {
+			assert.strictEqual(normalizeMarkdownThemeMode(bad), 'auto', `非法值 ${JSON.stringify(bad)} 必须回落默认`);
+		}
+	});
+});
+
+describe('media/markdown.js 主题三态', () => {
+	it('默认选中第二个（跟随主题），不改动宿主写的 body 明暗类别', () => {
+		const page = setupMarkdownView({}, BODY_HTML, { hostThemeKind: 'vscode-dark' });
+		try {
+			assert.strictEqual(page.api.themeMode(), 'auto');
+			assert.strictEqual(page.api.themeChecked(), 'auto');
+			assert.strictEqual(page.api.themeOptionCount(), 3);
+			const root = page.doc.documentElement;
+			assert.ok(root.classList.contains('wispkit-theme-auto'));
+			assert.ok(!root.classList.contains('wispkit-theme-light'));
+			assert.ok(!root.classList.contains('wispkit-theme-dark'));
+			assert.ok(page.doc.body.classList.contains('vscode-dark'), '跟随主题时 body 类别归宿主所有');
+			assert.strictEqual(page.messages.filter(m => m.type === 'wispkit.setTheme').length, 0, '首屏不该主动上报');
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('点左侧图标 = 强制浅色：html 类、按钮选中态、body 明暗类别一起变，并上报宿主', () => {
+		const page = setupMarkdownView({}, BODY_HTML, { hostThemeKind: 'vscode-dark' });
+		try {
+			page.doc.querySelector('[data-theme-mode="light"]')!
+				.dispatchEvent(new page.dom.window.MouseEvent('click', { bubbles: true }));
+
+			assert.strictEqual(page.api.themeMode(), 'light');
+			assert.strictEqual(page.api.themeChecked(), 'light');
+			assert.ok(page.doc.documentElement.classList.contains('wispkit-theme-light'));
+			assert.ok(!page.doc.documentElement.classList.contains('wispkit-theme-auto'));
+			assert.ok(page.doc.body.classList.contains('vscode-light'), '内置 markdown.css 与 mermaid 都按 body 类别取色');
+			assert.ok(!page.doc.body.classList.contains('vscode-dark'), '不能同时留着深色类别');
+			assert.deepStrictEqual(
+				page.messages.filter(m => m.type === 'wispkit.setTheme').pop(),
+				{ type: 'wispkit.setTheme', mode: 'light' },
+				'必须上报宿主，才能落盘并同步到其它 Markdown 标签页',
+			);
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('点右侧图标 = 强制深色', () => {
+		const page = setupMarkdownView({}, BODY_HTML, { hostThemeKind: 'vscode-light' });
+		try {
+			page.doc.querySelector('[data-theme-mode="dark"]')!
+				.dispatchEvent(new page.dom.window.MouseEvent('click', { bubbles: true }));
+
+			assert.strictEqual(page.api.themeMode(), 'dark');
+			assert.strictEqual(page.api.themeChecked(), 'dark');
+			assert.ok(page.doc.documentElement.classList.contains('wispkit-theme-dark'));
+			assert.ok(page.doc.body.classList.contains('vscode-dark'));
+			assert.ok(!page.doc.body.classList.contains('vscode-light'));
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('切回中间 = 跟随主题：撤掉强制调色板，并把 body 类别还原成宿主当前主题', () => {
+		const page = setupMarkdownView({}, BODY_HTML, { hostThemeKind: 'vscode-dark' });
+		try {
+			page.api.setThemeMode('light');
+			assert.ok(page.doc.body.classList.contains('vscode-light'));
+
+			page.api.setThemeMode('auto');
+			assert.strictEqual(page.api.themeMode(), 'auto');
+			assert.strictEqual(page.api.themeChecked(), 'auto');
+			assert.ok(page.doc.documentElement.classList.contains('wispkit-theme-auto'));
+			assert.ok(!page.doc.documentElement.classList.contains('wispkit-theme-light'));
+			assert.ok(page.doc.body.classList.contains('vscode-dark'), '还原成宿主真实的深色类别');
+			assert.ok(!page.doc.body.classList.contains('vscode-light'));
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('服务端初始为深色时首屏就是深色，并把 body 类别压成深色', () => {
+		const page = setupMarkdownView({}, BODY_HTML, { themeMode: 'dark', hostThemeKind: 'vscode-light' });
+		try {
+			assert.strictEqual(page.api.themeMode(), 'dark');
+			assert.strictEqual(page.api.themeChecked(), 'dark');
+			assert.ok(page.doc.documentElement.classList.contains('wispkit-theme-dark'));
+			assert.ok(page.doc.body.classList.contains('vscode-dark'));
+			assert.ok(!page.doc.body.classList.contains('vscode-light'));
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('宿主广播 wispkit.theme 时其它视图跟着切换，且不回发消息', () => {
+		const page = setupMarkdownView();
+		try {
+			page.send({ type: 'wispkit.theme', mode: 'dark' });
+
+			assert.strictEqual(page.api.themeMode(), 'dark');
+			assert.strictEqual(page.api.themeChecked(), 'dark');
+			assert.strictEqual(
+				page.messages.filter(m => m.type === 'wispkit.setTheme').length,
+				0,
+				'广播不能再回发，否则多个视图来回打转',
+			);
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('非法模式（含宿主广播）被忽略，保持当前状态', () => {
+		const page = setupMarkdownView();
+		try {
+			page.api.setThemeMode('light');
+			page.send({ type: 'wispkit.theme', mode: 'system' });
+
+			assert.strictEqual(page.api.themeMode(), 'light', '非法值不能悄悄切回跟随主题');
+			assert.strictEqual(page.api.themeChecked(), 'light');
+		} finally {
+			page.cleanup();
+		}
+	});
+});
+
+/* ---------------------------------------------------------------- 前端：Mermaid 主题 */
+
+const MERMAID_SOURCE = 'graph TD;\n  A-->B';
+const MERMAID_CONFIG_SPAN = '<span id="markdown-mermaid" aria-hidden="true" '
+	+ 'data-config="{&quot;lightModeTheme&quot;:&quot;vscode&quot;,&quot;darkModeTheme&quot;:&quot;vscode&quot;,&quot;maxTextSize&quot;:50000}"></span>';
+
+/** 模拟内置 mermaid 扩展渲染后的 DOM：两层 wrapper + 容器里只剩 SVG，源码只在 data 属性里。 */
+const RENDERED_MERMAID_BODY = `${MERMAID_CONFIG_SPAN}
+<div class="mermaid-wrapper"><div class="mermaid-content">
+	<div class="mermaid-wrapper"><div class="mermaid-content">
+		<div class="mermaid" id="mermaid-abc" data-vscode-context='{"webviewSection":"mermaid","mermaidSource":"graph TD;\\n  A-->B"}'>
+			<svg><text>B</text></svg>
+		</div>
+	</div></div>
+	<div class="mermaid-zoom-controls"></div>
+</div></div>
+<p data-line="2" class="code-line">正文</p>`;
+
+/** 只记录预览脚本收到的东西，不真的重画（真实脚本在这里会读 textContent 当源码）。 */
+function recordMermaidRenders(page: ReturnType<typeof setupMarkdownView>) {
+	const events: { sources: string[]; wrappers: number }[] = [];
+	page.dom.window.addEventListener('vscode.markdown.updateContent', () => {
+		events.push({
+			sources: [...page.layer.querySelectorAll('.mermaid')].map(element => element.textContent ?? ''),
+			wrappers: page.layer.querySelectorAll('.mermaid-wrapper').length,
+		});
+	});
+	return events;
+}
+
+describe('media/markdown.js Mermaid 图表主题', () => {
+	it('切换明暗主题时先把已渲染的图还原成源码，否则内置脚本删掉 SVG 后会读到空字符串（空白）', () => {
+		const page = setupMarkdownView({}, RENDERED_MERMAID_BODY);
+		try {
+			const events = recordMermaidRenders(page);
+			const before = page.api.mermaidConfigThemes();
+			assert.deepStrictEqual(before, { light: 'vscode', dark: 'vscode' });
+
+			page.api.setThemeMode('light');
+
+			assert.strictEqual(events.length, 1, '切换主题要让预览脚本重画一次');
+			assert.deepStrictEqual(
+				events[0].sources,
+				[MERMAID_SOURCE],
+				'重画时容器里必须是源码 —— 空白问题的根因就是这里读到了空字符串',
+			);
+			assert.strictEqual(events[0].wrappers, 0, 'wrapper（含缩放控件）要一并换掉，反复切主题不能层层嵌套');
+
+			const restored = page.layer.querySelectorAll('.mermaid');
+			assert.strictEqual(restored.length, 1);
+			assert.strictEqual(restored[0].textContent, MERMAID_SOURCE);
+			assert.strictEqual(restored[0].id, '', '旧的内容哈希 id 不能留到下一轮（下一次渲染会重新生成）');
+			assert.strictEqual(page.layer.querySelectorAll('.mermaid svg').length, 0);
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('内置脚本解析途中（容器已被清空、源码只在 data 属性里）切主题也能还原', () => {
+		const body = `${MERMAID_CONFIG_SPAN}<div class="mermaid" data-vscode-context='{"mermaidSource":"graph LR; X-->Y"}'></div>`;
+		const page = setupMarkdownView({}, body);
+		try {
+			const events = recordMermaidRenders(page);
+			page.api.setThemeMode('dark');
+			assert.deepStrictEqual(events[0]?.sources, ['graph LR; X-->Y'], '不能因为容器暂时为空就跳过还原');
+			assert.strictEqual(page.layer.querySelector('.mermaid')!.textContent, 'graph LR; X-->Y');
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('下拉框切换 Mermaid 主题：选中项、配置 span、持久化消息一起更新，并触发重画', () => {
+		const page = setupMarkdownView({}, RENDERED_MERMAID_BODY);
+		try {
+			const events = recordMermaidRenders(page);
+			assert.strictEqual(page.api.mermaidTheme(), 'vscode', '默认跟随主题');
+			assert.strictEqual(page.api.mermaidThemeCount(), 6);
+
+			page.api.setMermaidTheme('forest');
+
+			assert.strictEqual(page.api.mermaidTheme(), 'forest');
+			assert.strictEqual(page.api.mermaidThemeValue(), 'forest');
+			assert.strictEqual(page.doc.documentElement.dataset.wispkitMermaidTheme, 'forest');
+			assert.deepStrictEqual(page.api.mermaidConfigThemes(), { light: 'forest', dark: 'forest' });
+			assert.deepStrictEqual(
+				page.messages.filter(message => message.type === 'wispkit.setMermaidTheme').pop(),
+				{ type: 'wispkit.setMermaidTheme', theme: 'forest' },
+				'必须上报宿主，才能落盘并同步到其它 Markdown 标签页',
+			);
+			assert.strictEqual(events.length, 1, '换主题要重画');
+			assert.deepStrictEqual(events[0].sources, [MERMAID_SOURCE], '换主题同样不能把图弄空白');
+			const config = JSON.parse(page.doc.getElementById('markdown-mermaid')!.dataset.config!);
+			assert.strictEqual(config.maxTextSize, 50000, '其它 Mermaid 配置不能被吞掉');
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('同值不重画；宿主广播只同步状态、不回发消息', () => {
+		const page = setupMarkdownView({}, RENDERED_MERMAID_BODY);
+		try {
+			const events = recordMermaidRenders(page);
+			page.api.setMermaidTheme('dark');
+			const messagesAfterClick = page.messages.filter(message => message.type === 'wispkit.setMermaidTheme').length;
+			const rendersAfterClick = events.length;
+
+			page.send({ type: 'wispkit.mermaidTheme', theme: 'dark' });
+			assert.strictEqual(events.length, rendersAfterClick, '相同主题不重画');
+			assert.strictEqual(
+				page.messages.filter(message => message.type === 'wispkit.setMermaidTheme').length,
+				messagesAfterClick,
+				'宿主广播不能再回发，否则多视图来回打转',
+			);
+
+			page.send({ type: 'wispkit.mermaidTheme', theme: 'neutral' });
+			assert.strictEqual(page.api.mermaidTheme(), 'neutral');
+			assert.strictEqual(page.api.mermaidThemeValue(), 'neutral');
+
+			page.send({ type: 'wispkit.mermaidTheme', theme: 'solarized' });
+			assert.strictEqual(page.api.mermaidTheme(), 'neutral', '非法主题必须被忽略，不能悄悄回落到默认');
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('未渲染的 .mermaid 容器（纯源码 / 没装内置扩展）保持原样，不误伤', () => {
+		const body = `${MERMAID_CONFIG_SPAN}<div class="mermaid" id="plain">graph LR; X--&gt;Y</div>`;
+		const page = setupMarkdownView({}, body);
+		try {
+			page.api.setMermaidTheme('base');
+			const plain = page.doc.getElementById('plain')!;
+			assert.strictEqual(plain.textContent, 'graph LR; X-->Y');
+			assert.strictEqual(plain.id, 'plain', '没有渲染过的容器连 id 都不该动');
+		} finally {
+			page.cleanup();
+		}
+	});
+});
+
 /* ------------------------------------------------- 空行 / mermaid / 编辑开关 / 空白 */
 
 describe('media/shared/paragraph.js 空行与围栏定位', () => {
@@ -856,11 +1252,13 @@ describe('media/markdown.js 空行 / mermaid / 编辑开关', () => {
 		try {
 			page.api.setSource(source);
 			page.api.setEditMode(true);
-			assert.strictEqual(page.api.blockCount(), 2, 'mermaid 那块没有 data-line，不在映射表里');
+			assert.strictEqual(page.api.blockCount(), 3, '取映射表时先把渲染容器缺的 data-line 补齐');
 
-			// 走真实点击路径：mermaid 不在映射表里，没有索引可用，只能靠点击定位
-			const svg = page.doc.querySelector('.mermaid svg')!;
-			svg.dispatchEvent(new page.dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+			// 走真实点击路径：mermaid 不在映射表里，没有索引可用，只能靠点击定位。
+			// 点的是**容器**（图的外框）而不是内部 svg —— svg 本体在编辑模式下是「放大看图」，
+			// 见后面那条测试；容器才是段落编辑的入口。
+			const container = page.doc.querySelector('.mermaid')!;
+			container.dispatchEvent(new page.dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
 
 			assert.deepStrictEqual(
 				page.api.openSpan(),
@@ -881,7 +1279,7 @@ describe('media/markdown.js 空行 / mermaid / 编辑开关', () => {
 		}
 	});
 
-	it('编辑模式下点 mermaid 优先编辑，不放走浏览行为', () => {
+	it('编辑模式下点 mermaid 打开放大预览（改源码时要核对图），不再抢去开编辑框', () => {
 		const page = setupMarkdownView({}, [
 			'<h1 data-line="0" class="code-line">A</h1>',
 			'<div class="mermaid"><svg viewBox="0 0 10 10"><text>x</text></svg></div>',
@@ -893,8 +1291,74 @@ describe('media/markdown.js 空行 / mermaid / 编辑开关', () => {
 			const svg = page.doc.querySelector('.mermaid svg')!;
 			svg.dispatchEvent(new page.dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
 
-			assert.strictEqual(page.api.lightboxOpen(), false, '编辑模式下不该弹出放大预览');
-			assert.ok(page.api.paragraphInputVisible(), '而应当进入该段的编辑');
+			assert.strictEqual(page.api.lightboxOpen(), true, '编辑模式下点 mermaid 应当放大，方便边改边核对');
+			assert.strictEqual(page.api.paragraphInputVisible(), false, '不该把图换成源码编辑框');
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('编辑模式下点 svg 内部元素（如节点文字）同样放大', () => {
+		const page = setupMarkdownView({}, [
+			'<div class="mermaid"><svg viewBox="0 0 10 10"><text data-line="none">x</text></svg></div>',
+		].join('\n'));
+		try {
+			page.api.setSource(['```mermaid', 'graph TD', '```'].join('\n'));
+			page.api.setEditMode(true);
+			const text = page.doc.querySelector('.mermaid svg text')!;
+			text.dispatchEvent(new page.dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+
+			assert.strictEqual(page.api.lightboxOpen(), true);
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('编辑模式下点正文仍然进入段落编辑（放大的只有图）', () => {
+		const page = setupMarkdownView({}, [
+			'<h1 data-line="0" class="code-line">A</h1>',
+			'<p data-line="2" class="code-line">正文</p>',
+		].join('\n'));
+		try {
+			page.api.setSource(['# A', '', '正文'].join('\n'));
+			page.api.setEditMode(true);
+			const p = page.doc.querySelector('p[data-line="2"]')!;
+			p.dispatchEvent(new page.dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+
+			assert.ok(page.api.paragraphInputVisible(), '点正文还是就地编辑');
+			assert.strictEqual(page.api.lightboxOpen(), false);
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('浏览模式点相对链接：原始 href 发给宿主，不交给 webview 外壳', () => {
+		const page = setupMarkdownView({}, '<p data-line="0" class="code-line"><a id="rel" href="targets/x.md">x</a></p>');
+		try {
+			const event = new page.dom.window.MouseEvent('click', { bubbles: true, cancelable: true });
+			page.doc.querySelector('#rel')!.dispatchEvent(event);
+
+			assert.strictEqual(event.defaultPrevented, true, '必须阻止默认行为，否则外壳会按 https 打开');
+			assert.ok(
+				page.messages.some(message => message.type === 'wispkit.openLink' && message.href === 'targets/x.md'),
+				'原始 href 必须原样送到宿主（由宿主相对文档位置解析）',
+			);
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('编辑模式点链接不抢：仍然进入段落就地编辑', () => {
+		const page = setupMarkdownView({}, '<p data-line="0" class="code-line"><a id="rel" href="targets/x.md">x</a></p>');
+		try {
+			page.api.setSource('链接段');
+			page.api.setEditMode(true);
+			page.doc.querySelector('#rel')!.dispatchEvent(
+				new page.dom.window.MouseEvent('click', { bubbles: true, cancelable: true }),
+			);
+
+			assert.strictEqual(page.api.paragraphInputVisible(), true, '编辑模式下点哪里都是改那一段');
+			assert.ok(!page.messages.some(message => message.type === 'wispkit.openLink'), '编辑模式不该打开链接');
 		} finally {
 			page.cleanup();
 		}
@@ -951,8 +1415,9 @@ describe('media/markdown.js 空行 / mermaid / 编辑开关', () => {
 	}
 
 	function clickRenderedBlock(page: ReturnType<typeof setupMarkdownView>, index: number) {
-		const svg = page.doc.querySelectorAll('.mermaid svg')[index];
-		svg?.dispatchEvent(new page.dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+		// 点**容器**（图的外框，源映射接力落在它身上）；svg 本体在编辑模式下是放大看图。
+		const container = page.doc.querySelectorAll('.mermaid')[index];
+		container?.dispatchEvent(new page.dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
 	}
 
 	/**
@@ -1033,7 +1498,7 @@ describe('media/markdown.js 空行 / mermaid / 编辑开关', () => {
 			await relaySettled();
 
 			pres.forEach((_, index) => {
-				page.content.insertBefore(renderedContainer(page), anchors[index]);
+				page.layer.insertBefore(renderedContainer(page), anchors[index]);
 			});
 			await relaySettled();
 
@@ -1042,6 +1507,59 @@ describe('media/markdown.js 空行 / mermaid / 编辑开关', () => {
 				['2', '7'],
 				'先移除的两条源映射按顺序配给了后插入的两个容器',
 			);
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('首屏就向宿主索取源码（接力校验要用它），不必等到进编辑模式', () => {
+		const page = setupMarkdownView();
+		try {
+			assert.ok(
+				page.messages.some(m => m.type === 'wispkit.requestSource'),
+				'打开文档就要源码：否则首屏替换掉的 mermaid 块接不住 data-line',
+			);
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('首屏替换的块在源码到达后补上 data-line，前一段不会把整段围栏吞进自己的区间', async () => {
+		const source = ['# A', '', '```mermaid', 'graph TD', '```', '', '尾'].join('\n');
+		const page = setupMarkdownView({}, [
+			'<h1 data-line="0" class="code-line">A</h1>',
+			'<pre data-line="2" class="code-line mermaid">graph TD</pre>',
+			'<p data-line="7" class="code-line">尾</p>',
+		].join('\n'));
+		try {
+			// 首屏：此时 source 还没有（旧实现的 bug 就出在这里）
+			replaceRenderedBlocks(page);
+			await relaySettled();
+			assert.strictEqual(
+				page.doc.querySelector('.mermaid')!.getAttribute('data-line'),
+				null,
+				'源码没到时接力只能放弃 —— 这是前置条件，不是期望结果',
+			);
+
+			// 源码到手 → 用邻居夹区间补漏
+			page.send({ type: 'wispkit.source', text: source });
+			assert.strictEqual(
+				page.doc.querySelector('.mermaid')!.getAttribute('data-line'),
+				'2',
+				'源码到达后必须把行号补到容器上',
+			);
+
+			// 关键后果：标题段的区间停在围栏开启行，不会吞掉整张图
+			page.api.setEditMode(true);
+			page.doc.querySelector('h1')!.dispatchEvent(
+				new page.dom.window.MouseEvent('click', { bubbles: true, cancelable: true }),
+			);
+			assert.deepStrictEqual(
+				page.api.openSpan(),
+				{ startLine: 0, endLine: 2 },
+				'点标题只该编辑标题这一段（改前会开出 88 行、装下整张图的编辑框）',
+			);
+			assert.strictEqual(page.api.paragraphValue(), '# A\n');
 		} finally {
 			page.cleanup();
 		}
@@ -1087,13 +1605,13 @@ describe('media/markdown.js 空行 / mermaid / 编辑开关', () => {
 			// 先只插一个行内 katex 节点：它不是块，也没有源映射，不该被安上行号
 			const inline = page.doc.createElement('span');
 			inline.className = 'katex';
-			page.content.appendChild(inline);
+			page.layer.appendChild(inline);
 			await relaySettled();
 			assert.strictEqual(inline.getAttribute('data-line'), null, '行内公式不是块，不参与配对');
 
 			// 再插入一个孤立的块级容器：此刻队列里没有待配对的源映射（没有任何块被移除）
 			const orphan = renderedContainer(page);
-			page.content.appendChild(orphan);
+			page.layer.appendChild(orphan);
 			await relaySettled();
 			assert.strictEqual(
 				orphan.getAttribute('data-line'),
@@ -1310,5 +1828,564 @@ describe('util/csp', () => {
 		const csp = strictContentSecurityPolicy('vscode-webview://abc; something-else', 'N1');
 		assert.ok(csp.includes('vscode-webview://abc'));
 		assert.ok(!csp.includes('something-else'));
+	});
+});
+
+/* ---------------------------------------------------------------- 缩放与查找：页面骨架 */
+
+describe('markdown/page 缩放与查找控件', () => {
+	it('工具栏有缩小 / 百分比重置 / 放大三个多级缩放控件', () => {
+		const html = basePage();
+		for (const id of ['wispkit-zoom-out', 'wispkit-zoom-reset', 'wispkit-zoom-in']) {
+			assert.ok(html.includes(`id="${id}"`), `缺少缩放控件 ${id}`);
+		}
+		assert.ok(/id="wispkit-zoom-reset"[^>]*>100%<\/button>/.test(html), '默认档位显示 100%');
+		assert.ok(html.includes('id="wispkit-icon-zoom-in"'), '放大图标必须在 sprite 里');
+		assert.ok(html.includes('id="wispkit-icon-zoom-out"'), '缩小图标必须在 sprite 里');
+	});
+
+	it('查找栏默认隐藏，包含输入框 / 计数 / 大小写 / 上一个 / 下一个 / 关闭', () => {
+		const html = basePage();
+		assert.ok(/id="wispkit-find"[^>]*hidden/.test(html), '查找栏初始必须隐藏');
+		for (const id of [
+			'wispkit-find-input', 'wispkit-find-count', 'wispkit-find-case',
+			'wispkit-find-prev', 'wispkit-find-next', 'wispkit-find-close', 'wispkit-find-toggle',
+		]) {
+			assert.ok(html.includes(`id="${id}"`), `缺少查找控件 ${id}`);
+		}
+		assert.ok(html.includes('aria-live="polite"'), '命中计数要能被读屏软件播报');
+	});
+
+	it('正文包在独立的缩放层里（缩放不能作用在滚动容器上）', () => {
+		const html = basePage({ bodyHtml: '<p id="body">x</p>' });
+		assert.ok(html.includes('id="wispkit-zoom-layer"'), '必须有缩放层');
+		assert.ok(/<div class="wispkit-zoom-layer" id="wispkit-zoom-layer"><p id="body">x<\/p><\/div>/.test(html),
+			'正文必须在缩放层内部，缩放只作用于正文');
+	});
+
+	it('CSS 定义了大文档虚拟化与关键字高亮', () => {
+		const css = fs.readFileSync(path.join(__dirname, '..', '..', 'media', 'markdown.css'), 'utf8');
+		assert.ok(css.includes('.wispkit-zoom-layer.wispkit-virtualized > *'), '缺少虚拟化选择器');
+		assert.ok(/content-visibility:\s*auto/.test(css), '虚拟化必须用 content-visibility:auto');
+		assert.ok(/contain-intrinsic-size:\s*auto/.test(css), '虚拟化必须给估算高度，否则滚动条会乱跳');
+		assert.ok(css.includes('::highlight(wispkit-find-match)'), 'CSS 必须给全量高亮配色');
+		assert.ok(css.includes('::highlight(wispkit-find-current)'), 'CSS 必须给当前命中单独配色');
+		assert.ok(css.includes('.wispkit-find-hit'), '老引擎退回 <mark> 时也要有样式');
+	});
+});
+
+/* ---------------------------------------------------------------- 缩放：纯函数与前端 */
+
+describe('media/shared/pagezoom', () => {
+	const { normalizeZoom, zoomPercent, DEFAULT_ZOOM_LEVELS } = pageZoomPure;
+
+	it('倍率与百分比两种写法都认，并吸附到最近档位', () => {
+		assert.strictEqual(normalizeZoom(1.5), 1.5);
+		assert.strictEqual(normalizeZoom('1.25'), 1.25);
+		assert.strictEqual(normalizeZoom('150%'), 1.5);
+		assert.strictEqual(normalizeZoom(150), 1.5);
+		assert.strictEqual(normalizeZoom(0.73), 0.7);
+		assert.strictEqual(normalizeZoom(0.74), 0.7, '等距时取较小档，避免无厘头跳动');
+	});
+
+	it('非法值回落到 100%，超界吸附到最近端', () => {
+		for (const bad of [undefined, null, '', 'abc', 0, -1, Number.NaN]) {
+			assert.strictEqual(normalizeZoom(bad), 1, `非法值 ${String(bad)} 必须回落 100%`);
+		}
+		assert.strictEqual(normalizeZoom(500), 3);
+		assert.strictEqual(normalizeZoom(0.01), 0.5);
+	});
+
+	it('档位表从 50% 到 300%，且包含 100%', () => {
+		assert.strictEqual(DEFAULT_ZOOM_LEVELS[0], 0.5);
+		assert.strictEqual(DEFAULT_ZOOM_LEVELS[DEFAULT_ZOOM_LEVELS.length - 1], 3);
+		assert.ok(DEFAULT_ZOOM_LEVELS.includes(1));
+		assert.strictEqual(zoomPercent(1.25), 125);
+	});
+
+	it('图块测量按缩放倍率补偿（mermaid 写回的 CSS px 不能被 zoom 二次放大）', () => {
+		const dom = installDom('<html><body><div id="layer"><div class="mermaid"></div><p id="text"></p></div></body></html>');
+		const doc = dom.window.document;
+		const layer = doc.getElementById('layer')!;
+		const mermaid = doc.querySelector('.mermaid')!;
+		const text = doc.getElementById('text')!;
+		const rect = {
+			x: 0, y: 50, left: 0, top: 50, width: 200, height: 100, right: 200, bottom: 150,
+			toJSON: () => ({}),
+		};
+		Object.defineProperty(dom.window.Element.prototype, 'getBoundingClientRect', {
+			configurable: true,
+			value: () => rect,
+		});
+
+		const zoom = pageZoomPure.createPageZoom({ target: layer, initial: 2 });
+		const diagramRect = mermaid.getBoundingClientRect() as any;
+		assert.strictEqual(diagramRect.width, 100, '图块宽度要除以 2');
+		assert.strictEqual(diagramRect.height, 50, '图块高度要除以 2');
+		assert.strictEqual(diagramRect.top, 50, 'left/top 保持屏幕坐标：mermaid 滚轮锚点要用它减 clientX/clientY');
+		assert.strictEqual((text.getBoundingClientRect() as any).width, 200, '普通正文不受影响');
+
+		zoom.reset();
+		assert.strictEqual((mermaid.getBoundingClientRect() as any).width, 200, '100% 时不做任何改写');
+	});
+});
+
+describe('media/markdown.js 正文多级缩放', () => {
+	const click = (page: any, id: string) => page.doc.getElementById(id)
+		.dispatchEvent(new page.dom.window.MouseEvent('click', { bubbles: true }));
+
+	it('默认 100%，不写内联 zoom（不留下 zoom:1 的额外排版路径）', () => {
+		const page = setupMarkdownView();
+		try {
+			assert.strictEqual(page.api.zoomPercent(), 100);
+			assert.strictEqual(page.doc.getElementById('wispkit-zoom-reset')!.textContent, '100%');
+			assert.strictEqual(page.layer.style.zoom, '');
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('点 + 逐级放大、点 − 逐级缩小、点百分比重置，并落盘', () => {
+		const page = setupMarkdownView();
+		try {
+			click(page, 'wispkit-zoom-in');
+			assert.strictEqual(page.api.zoomPercent(), 110);
+			assert.strictEqual(page.layer.style.zoom, '1.1');
+			assert.strictEqual(page.state['wispkit.zoom'], '1.1');
+
+			click(page, 'wispkit-zoom-in');
+			assert.strictEqual(page.api.zoomPercent(), 125, '第二级是 125%，多级档位不是每次 +10%');
+
+			click(page, 'wispkit-zoom-out');
+			assert.strictEqual(page.api.zoomPercent(), 110);
+
+			click(page, 'wispkit-zoom-reset');
+			assert.strictEqual(page.api.zoomPercent(), 100);
+			assert.strictEqual(page.layer.style.zoom, '', '100% 时移除内联 zoom');
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('到上下限后按钮禁用，再点也不越界', () => {
+		const page = setupMarkdownView();
+		try {
+			for (let i = 0; i < 30; i += 1) {
+				page.api.zoomIn();
+			}
+			assert.strictEqual(page.api.zoomPercent(), 300);
+			assert.strictEqual((page.doc.getElementById('wispkit-zoom-in') as HTMLButtonElement).disabled, true);
+			page.api.zoomIn();
+			assert.strictEqual(page.api.zoomPercent(), 300, '上限之外保持 300%');
+
+			for (let i = 0; i < 30; i += 1) {
+				page.api.zoomOut();
+			}
+			assert.strictEqual(page.api.zoomPercent(), 50);
+			assert.strictEqual((page.doc.getElementById('wispkit-zoom-out') as HTMLButtonElement).disabled, true);
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('跨会话记住缩放档位（同一文档再打开仍是上次的比例）', () => {
+		const first = setupMarkdownView();
+		try {
+			first.api.setZoom('150');
+			assert.strictEqual(first.state['wispkit.zoom'], '1.5');
+		} finally {
+			first.cleanup();
+		}
+
+		const second = setupMarkdownView({ 'wispkit.zoom': '1.5' });
+		try {
+			assert.strictEqual(second.api.zoomPercent(), 150);
+			assert.strictEqual(second.layer.style.zoom, '1.5');
+			assert.strictEqual(second.doc.getElementById('wispkit-zoom-reset')!.textContent, '150%');
+		} finally {
+			second.cleanup();
+		}
+	});
+
+	it('非法持久化值不把正文缩成 0 或 NaN', () => {
+		for (const stored of ['abc', '0', '-2', 'NaN']) {
+			const page = setupMarkdownView({ 'wispkit.zoom': stored });
+			try {
+				assert.strictEqual(page.api.zoomPercent(), 100, `存储值 ${stored} 必须回落 100%`);
+				assert.strictEqual(page.layer.style.zoom, '');
+			} finally {
+				page.cleanup();
+			}
+		}
+	});
+
+	it('Ctrl+= / Ctrl+- / Ctrl+0 与按钮等价', () => {
+		const page = setupMarkdownView();
+		try {
+			const key = (value: string) => {
+				const event = new page.dom.window.KeyboardEvent('keydown', {
+					key: value, ctrlKey: true, bubbles: true, cancelable: true,
+				});
+				page.doc.dispatchEvent(event);
+				return event;
+			};
+			assert.strictEqual(key('=').defaultPrevented, true);
+			assert.strictEqual(page.api.zoomPercent(), 110);
+			key('-');
+			assert.strictEqual(page.api.zoomPercent(), 100);
+			key('=');
+			key('=');
+			assert.strictEqual(page.api.zoomPercent(), 125);
+			key('0');
+			assert.strictEqual(page.api.zoomPercent(), 100);
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('Ctrl+滚轮按档位缩放并阻止浏览器默认缩放', () => {
+		const page = setupMarkdownView();
+		try {
+			const event = new page.dom.window.WheelEvent('wheel', {
+				deltaY: -120, ctrlKey: true, bubbles: true, cancelable: true,
+			});
+			page.content.dispatchEvent(event);
+			assert.strictEqual(event.defaultPrevented, true);
+			assert.strictEqual(page.api.zoomPercent(), 110);
+
+			const down = new page.dom.window.WheelEvent('wheel', {
+				deltaY: 120, ctrlKey: true, bubbles: true, cancelable: true,
+			});
+			page.content.dispatchEvent(down);
+			assert.strictEqual(page.api.zoomPercent(), 100);
+		} finally {
+			page.cleanup();
+		}
+	});
+});
+
+/* ---------------------------------------------------------------- 查找：纯函数与前端 */
+
+describe('media/shared/find 纯函数', () => {
+	const { findTextMatches, collectTextSegments } = findPure;
+
+	it('默认不区分大小写，命中互不重叠', () => {
+		const found = findTextMatches('Alpha alpha ALPHA', 'alpha');
+		assert.deepStrictEqual(found.matches, [
+			{ start: 0, end: 5 },
+			{ start: 6, end: 11 },
+			{ start: 12, end: 17 },
+		]);
+		assert.strictEqual(found.truncated, false);
+	});
+
+	it('区分大小写时只命中大小写完全一致的文本', () => {
+		const found = findTextMatches('Alpha alpha ALPHA', 'alpha', { caseSensitive: true });
+		assert.deepStrictEqual(found.matches, [{ start: 6, end: 11 }]);
+	});
+
+	it('特殊字符按字面量搜索，不当正则元字符', () => {
+		const found = findTextMatches('a.b axb a.b', 'a.b');
+		assert.deepStrictEqual(found.matches, [{ start: 0, end: 3 }, { start: 8, end: 11 }]);
+	});
+
+	it('超过上限时截断并标记 truncated', () => {
+		const found = findTextMatches('aaaaa', 'a', { limit: 3 });
+		assert.strictEqual(found.matches.length, 3);
+		assert.strictEqual(found.truncated, true);
+	});
+
+	it('空查询 / 空文本不产生命中', () => {
+		assert.deepStrictEqual(findTextMatches('abc', ''), { matches: [], truncated: false });
+		assert.deepStrictEqual(findTextMatches('', 'a'), { matches: [], truncated: false });
+	});
+
+	it('同一块内被行内标签拆开的文本可以连续命中，跨块不行', () => {
+		const dom = installDom('<html><body><div id="root">'
+			+ '<p>Hello <strong>World</strong></p><p>second</p>'
+			+ '<script>hiddenword</script><svg><text>svgword</text></svg>'
+			+ '</div></body></html>');
+		const root = dom.window.document.getElementById('root')!;
+		const { text } = collectTextSegments(root);
+		assert.strictEqual(text, 'Hello World\nsecond', '块之间用换行分隔；script 与 svg 不参与搜索');
+		assert.strictEqual(findTextMatches(text, 'Hello World').matches.length, 1);
+		assert.strictEqual(findTextMatches(text, 'Worldsecond').matches.length, 0, '跨块不能命中');
+		assert.strictEqual(findTextMatches(text, 'hiddenword').matches.length, 0, 'script 内容不能命中');
+		assert.strictEqual(findTextMatches(text, 'svgword').matches.length, 0, 'mermaid 等 SVG 文本不参与搜索');
+	});
+});
+
+const FIND_BODY = [
+	'<h1 id="find-h">标题 Alpha</h1>',
+	'<p id="find-p1">hello <strong>world</strong> 和 ALPHA</p>',
+	'<p id="find-p2">第二步 alpha</p>',
+	'<table><tbody><tr><td>alpha cell</td></tr></tbody></table>',
+].join('\n');
+
+function keydown(page: any, target: any, key: string, init: Record<string, unknown> = {}) {
+	const event = new page.dom.window.KeyboardEvent('keydown', {
+		key, bubbles: true, cancelable: true, ...init,
+	});
+	target.dispatchEvent(event);
+	return event;
+}
+
+describe('media/markdown.js 正文查找', () => {
+	it('Ctrl+F 呼出查找栏并把焦点放进输入框', () => {
+		const page = setupMarkdownView({}, FIND_BODY);
+		try {
+			const event = keydown(page, page.doc, 'f', { ctrlKey: true });
+			assert.strictEqual(event.defaultPrevented, true);
+			assert.strictEqual(page.api.findOpen(), true);
+			assert.strictEqual(page.doc.getElementById('wispkit-find')!.hidden, false);
+			assert.ok(page.content.classList.contains('wispkit-find-open'), '查找期间要关掉大文档虚拟化，Range 才有布局');
+			assert.strictEqual(page.doc.getElementById('wispkit-find-toggle')!.getAttribute('aria-pressed'), 'true');
+			assert.strictEqual(page.doc.activeElement?.id, 'wispkit-find-input');
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('输入关键字后高亮全部命中并显示 1/N 计数', () => {
+		const page = setupMarkdownView({}, FIND_BODY);
+		try {
+			page.api.setFindQuery('alpha');
+			assert.strictEqual(page.api.findMatchCount(), 4, 'Alpha / ALPHA / alpha / alpha 共 4 处');
+			assert.strictEqual(page.api.findActiveIndex(), 0);
+			assert.strictEqual(page.doc.getElementById('wispkit-find-count')!.textContent, '1/4');
+			// jsdom 没有 Highlight API，自动走 <mark> 退回路径；四处都在单个文本节点内
+			assert.strictEqual(page.api.findUsesHighlightApi(), false);
+			assert.strictEqual(page.api.findMarkedCount(), 4);
+			assert.strictEqual(page.doc.querySelectorAll('mark.wispkit-find-hit').length, 4);
+			assert.ok(page.doc.querySelector('mark.wispkit-find-hit.wispkit-find-current'), '当前命中要单独标出');
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('下一个 / 上一个循环跳转，计数跟着变', () => {
+		const page = setupMarkdownView({}, FIND_BODY);
+		try {
+			page.api.setFindQuery('alpha');
+			assert.strictEqual(page.api.findActiveIndex(), 0);
+			page.api.findNext();
+			assert.strictEqual(page.api.findActiveIndex(), 1);
+			assert.strictEqual(page.doc.getElementById('wispkit-find-count')!.textContent, '2/4');
+			page.api.findPrev();
+			assert.strictEqual(page.api.findActiveIndex(), 0);
+			page.api.findPrev();
+			assert.strictEqual(page.api.findActiveIndex(), 3, '第一个再往前要回到最后一个');
+			assert.strictEqual(page.doc.getElementById('wispkit-find-count')!.textContent, '4/4');
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('跳转按命中的 Range 位置滚动正文', () => {
+		const page = setupMarkdownView({}, FIND_BODY);
+		try {
+			const rect = (top: number) => ({
+				top, left: 0, right: 10, bottom: top + 10, width: 10, height: 10, x: 0, y: top,
+				toJSON: () => ({}),
+			});
+			Object.defineProperty(page.content, 'clientHeight', { value: 400, configurable: true });
+			Object.defineProperty(page.content, 'getBoundingClientRect', {
+				value: () => rect(100), configurable: true,
+			});
+			(page.dom.window.Range.prototype as any).getClientRects = () => [rect(500)];
+
+			page.api.setFindQuery('alpha');
+			assert.strictEqual(page.content.scrollTop, 300, '命中在视口下方 400px：滚动到距顶部 25% 处');
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('大小写开关切换后重新搜索', () => {
+		const page = setupMarkdownView({}, FIND_BODY);
+		try {
+			page.api.setFindQuery('alpha');
+			assert.strictEqual(page.api.findMatchCount(), 4);
+			page.api.setFindCaseSensitive(true);
+			assert.strictEqual(page.api.findCaseSensitive(), true);
+			assert.strictEqual(page.api.findMatchCount(), 2, '区分大小写后只剩两处小写 alpha');
+			assert.strictEqual(page.doc.getElementById('wispkit-find-case')!.getAttribute('aria-pressed'), 'true');
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('Esc 关闭并清掉高亮，正文恢复原样', () => {
+		const page = setupMarkdownView({}, FIND_BODY);
+		try {
+			page.api.setFindQuery('alpha');
+			const input = page.doc.getElementById('wispkit-find-input')!;
+			keydown(page, input, 'Escape');
+			assert.strictEqual(page.api.findOpen(), false);
+			assert.strictEqual(page.doc.getElementById('wispkit-find')!.hidden, true);
+			assert.strictEqual(page.api.findMarkedCount(), 0);
+			assert.strictEqual(page.doc.querySelectorAll('mark.wispkit-find-hit').length, 0);
+			assert.ok(!page.content.classList.contains('wispkit-find-open'));
+			assert.strictEqual(page.content.textContent!.includes('Alpha'), true, '清除高亮不能吞掉正文');
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('Ctrl+F 时用正文里选中的文本预填查询', () => {
+		const page = setupMarkdownView({}, FIND_BODY);
+		try {
+			const heading = page.doc.getElementById('find-h')!;
+			const selection = page.dom.window.getSelection()!;
+			selection.selectAllChildren(heading);
+			keydown(page, page.doc, 'f', { ctrlKey: true });
+
+			assert.strictEqual((page.doc.getElementById('wispkit-find-input') as HTMLInputElement).value, '标题 Alpha');
+			assert.strictEqual(page.api.findMatchCount(), 1);
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('跨行内标签的短语能命中（但退回路径不拆开标签包 <mark>）', () => {
+		const page = setupMarkdownView({}, FIND_BODY);
+		try {
+			page.api.setFindQuery('hello world');
+			assert.strictEqual(page.api.findMatchCount(), 1, 'Hello <strong>World</strong> 应当能整体命中');
+			assert.strictEqual(page.api.findMarkedCount(), 0, '跨文本节点的匹配在退回路径里不包 mark，避免拆坏结构');
+			assert.strictEqual(page.doc.getElementById('wispkit-find-count')!.textContent, '1/1');
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('没有命中时显示 0/0 并标红', () => {
+		const page = setupMarkdownView({}, FIND_BODY);
+		try {
+			page.api.setFindQuery('不存在的词');
+			assert.strictEqual(page.api.findMatchCount(), 0);
+			assert.strictEqual(page.doc.getElementById('wispkit-find-count')!.textContent, '0/0');
+			assert.ok(page.doc.getElementById('wispkit-find-count')!.classList.contains('wispkit-find-empty'));
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('正文更新后按原查询在新 DOM 上重跑（旧高亮不残留）', () => {
+		const page = setupMarkdownView({}, FIND_BODY);
+		try {
+			page.api.setFindQuery('alpha');
+			assert.strictEqual(page.api.findMatchCount(), 4);
+
+			page.send({ type: 'wispkit.update', bodyHtml: '<p data-line="0" class="code-line">beta only</p>', source: 'beta only' });
+			assert.strictEqual(page.layer.querySelectorAll('mark.wispkit-find-hit').length, 0, '旧 mark 随旧正文一起没了');
+			assert.strictEqual(page.api.findMatchCount(), 0);
+			assert.strictEqual(page.doc.getElementById('wispkit-find-count')!.textContent, '0/0');
+
+			page.api.setFindQuery('beta');
+			assert.strictEqual(page.api.findMatchCount(), 1);
+			assert.strictEqual(page.api.findMarkedCount(), 1);
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('输入框输入走防抖搜索', async () => {
+		const page = setupMarkdownView({}, FIND_BODY);
+		try {
+			page.api.openFind('');
+			const input = page.doc.getElementById('wispkit-find-input') as HTMLInputElement;
+			input.value = 'alpha';
+			input.dispatchEvent(new page.dom.window.Event('input', { bubbles: true }));
+			assert.strictEqual(page.api.findMatchCount(), 0, '防抖窗口内还没搜');
+			await new Promise(resolve => setTimeout(resolve, 150));
+			assert.strictEqual(page.api.findMatchCount(), 4);
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('有 Highlight API 时只登记 Range、不改 DOM', () => {
+		const page = setupMarkdownView({}, FIND_BODY, { highlightApi: true });
+		try {
+			page.api.setFindQuery('alpha');
+			assert.strictEqual(page.api.findUsesHighlightApi(), true);
+			assert.strictEqual(page.api.findMarkedCount(), 0);
+			assert.strictEqual(page.doc.querySelectorAll('mark.wispkit-find-hit').length, 0, '不能向正文插入 mark');
+			assert.ok(page.highlightRegistry, '测试替身必须就位');
+			assert.strictEqual(page.highlightRegistry!.get('wispkit-find-match').ranges.length, 4);
+			assert.ok(page.highlightRegistry!.has('wispkit-find-current'));
+
+			page.api.findNext();
+			assert.ok(page.highlightRegistry!.has('wispkit-find-current'));
+
+			page.api.closeFind();
+			assert.strictEqual(page.highlightRegistry!.has('wispkit-find-match'), false);
+			assert.strictEqual(page.highlightRegistry!.has('wispkit-find-current'), false);
+		} finally {
+			page.cleanup();
+		}
+	});
+});
+
+/* ---------------------------------------------------------------- 大文档虚拟化 */
+
+describe('media/markdown.js 大文档虚拟化', () => {
+	it('普通文档不开启虚拟化（避免估算高度让滚动条乱跳）', () => {
+		const page = setupMarkdownView();
+		try {
+			assert.strictEqual(page.api.virtualized(), false);
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('表格 / 图 / 代码块很多的大文档自动开启 content-visibility 虚拟化', () => {
+		const body = Array.from({ length: 45 }, (_, i) => (
+			`<table data-line="${i * 3}" class="code-line"><tbody><tr><td>row ${i}</td></tr></tbody></table>`
+		)).join('');
+		const page = setupMarkdownView({}, body);
+		try {
+			assert.strictEqual(page.api.virtualized(), true);
+			assert.ok(page.layer.classList.contains('wispkit-virtualized'));
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('查找期间临时关闭虚拟化，关闭查找后恢复', () => {
+		const body = Array.from({ length: 45 }, (_, i) => (
+			`<table data-line="${i * 3}" class="code-line"><tbody><tr><td>row ${i}</td></tr></tbody></table>`
+		)).join('');
+		const page = setupMarkdownView({}, body);
+		try {
+			assert.strictEqual(page.api.virtualized(), true);
+			page.api.openFind('row');
+			assert.ok(page.content.classList.contains('wispkit-find-open'));
+			page.api.closeFind();
+			assert.ok(!page.content.classList.contains('wispkit-find-open'));
+			assert.strictEqual(page.api.virtualized(), true, '虚拟化类仍在，只是查找期间被 CSS 覆盖');
+		} finally {
+			page.cleanup();
+		}
+	});
+
+	it('图块不参与虚拟化：mermaid 需要真实布局才能量出 SVG 尺寸', () => {
+		const tables = Array.from({ length: 40 }, (_, i) => (
+			`<table data-line="${i * 3}" class="code-line"><tbody><tr><td>row ${i}</td></tr></tbody></table>`
+		)).join('');
+		const mermaid = '<div class="mermaid" data-line="999"><svg viewBox="0 0 10 10"><text>x</text></svg></div>';
+		const page = setupMarkdownView({}, tables + mermaid);
+		try {
+			assert.strictEqual(page.api.virtualized(), true);
+			assert.ok(page.layer.querySelector('.mermaid')!.classList.contains('wispkit-virtualize-keep'),
+				'图块必须打上不虚拟化标记');
+			assert.ok(!page.layer.querySelector('table')!.classList.contains('wispkit-virtualize-keep'),
+				'普通表格照常参与虚拟化');
+			const css = fs.readFileSync(path.join(__dirname, '..', '..', 'media', 'markdown.css'), 'utf8');
+			assert.ok(css.includes('> .wispkit-virtualize-keep'), 'CSS 必须让图块标记覆盖 content-visibility:auto');
+		} finally {
+			page.cleanup();
+		}
 	});
 });

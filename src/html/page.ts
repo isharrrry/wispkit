@@ -36,11 +36,26 @@ export function injectIntoHead(html: string, head: string): string {
 	return `<head>\n${head}\n</head>\n${html}`;
 }
 
-export function buildHtmlFromSource(source: string, baseHref: string | undefined, cspSource: string): string {
+export interface HtmlPageOptions {
+	/** 文档的 webview 资源 URL；相对 css/js/图片靠它加载。 */
+	readonly baseHref?: string;
+	readonly cspSource: string;
+	/**
+	 * 链接路由脚本的 webview URL。页面里的相对链接会被 `<base>` 解析成宿主资源 URL，
+	 * 点击必须由前端截住、把原始 href 送回扩展 —— 详见 `media/shared/links.js`。
+	 */
+	readonly scriptSrc?: string;
+}
+
+export function buildHtmlFromSource(source: string, options: HtmlPageOptions): string {
 	const rewritten = rewriteVscodeFileLinksInHtml(source);
+	const script = options.scriptSrc
+		? `<script defer src="${escapeAttribute(options.scriptSrc)}"></script>`
+		: '';
 	const head = [
-		`<meta http-equiv="Content-Security-Policy" content="${escapeAttribute(permissiveContentSecurityPolicy(cspSource))}">`,
-		baseHref ? `<base href="${escapeAttribute(baseHref)}">` : '',
+		`<meta http-equiv="Content-Security-Policy" content="${escapeAttribute(permissiveContentSecurityPolicy(options.cspSource))}">`,
+		options.baseHref ? `<base href="${escapeAttribute(options.baseHref)}">` : '',
+		script,
 	].filter(part => part.length > 0).join('\n');
 	return injectIntoHead(rewritten, head);
 }

@@ -26,6 +26,186 @@ body {
 	padding-top: 0;
 }
 
+/* ---------------------------------------------------------------- 主题三态 */
+
+/*
+ * 工具栏的主题三态（浅色 / 跟随主题 / 深色）里，后两者是**强制**明暗：
+ * 在 `<html>` 上挂 `wispkit-theme-light` / `wispkit-theme-dark`，把 VS Code 的
+ * `--vscode-*` 变量改成默认 Light+ / Dark+ 的对应色。`auto` 不挂这两个类，
+ * 继续跟随 VS Code 当前颜色主题。
+ *
+ * 必须带 `!important`：webview 宿主把主题变量写在 `<html>` 的**行内 style** 上，
+ * 行内声明优先级高于普通样式表声明；只有 `!important` 才能压过它。
+ *
+ * 调色板取自 VS Code 默认 Light+ / Dark+。强制模式的定义就是「不跟随当前主题」，
+ * 所以用户自定义颜色主题的配色不会带过来 —— 选择浅色 / 深色时看到的是一套稳定、
+ * 对比度可预期的配色。
+ *
+ * 正文、目录、工具栏、右键菜单、放大预览、输入框都只读这些变量，因此这一层
+ * 覆盖即可让整个 Markdown 浏览器统一切换，不需要在各处写两套颜色。
+ */
+html.wispkit-theme-light {
+	color-scheme: light;
+
+	--vscode-foreground: #616161 !important;
+	--vscode-editor-background: #ffffff !important;
+	--vscode-editor-foreground: #000000 !important;
+	--vscode-sideBar-background: #f3f3f3 !important;
+	--vscode-editorWidget-background: #f3f3f3 !important;
+	--vscode-editorWidget-border: #c8c8c8 !important;
+	--vscode-panel-border: #80808059 !important;
+	--vscode-widget-border: #d4d4d4 !important;
+	--vscode-widget-shadow: #00000026 !important;
+	--vscode-contrastBorder: transparent !important;
+	--vscode-contrastActiveBorder: transparent !important;
+	--vscode-focusBorder: #0090f1 !important;
+
+	--vscode-textLink-foreground: #006ab1 !important;
+	--vscode-textLink-activeForeground: #006ab1 !important;
+	--vscode-textCodeBlock-background: #dcdcdc66 !important;
+	--vscode-textBlockQuote-background: #7f7f7f1a !important;
+	--vscode-textBlockQuote-border: #007acc80 !important;
+	--vscode-textPreformat-foreground: #a31515 !important;
+	--vscode-textPreformat-background: #0000001a !important;
+
+	--vscode-toolbar-hoverBackground: #b8b8b850 !important;
+	--vscode-toolbar-activeBackground: #a6a6a650 !important;
+	--vscode-list-hoverBackground: #e8e8e8 !important;
+	--vscode-list-activeSelectionBackground: #0060c0 !important;
+	--vscode-list-activeSelectionForeground: #ffffff !important;
+
+	--vscode-input-background: #ffffff !important;
+	--vscode-input-foreground: #333333 !important;
+	--vscode-input-border: #cecece !important;
+	--vscode-inputValidation-errorBackground: #f2dede !important;
+	--vscode-inputValidation-errorBorder: #be1100 !important;
+	--vscode-dropdown-background: #ffffff !important;
+	--vscode-dropdown-foreground: #616161 !important;
+	--vscode-dropdown-border: #cecece !important;
+
+	--vscode-menu-background: #ffffff !important;
+	--vscode-menu-foreground: #616161 !important;
+	--vscode-menu-border: #c8c8c8 !important;
+	--vscode-menu-separatorBackground: #d4d4d4 !important;
+	--vscode-menu-selectionBackground: #0060c0 !important;
+	--vscode-menu-selectionForeground: #ffffff !important;
+	--vscode-button-background: #007acc !important;
+	--vscode-button-foreground: #ffffff !important;
+
+	--vscode-editor-hoverHighlightBackground: #add6ff80 !important;
+	--vscode-editorWarning-foreground: #bf8803 !important;
+	--vscode-editorError-foreground: #e51400 !important;
+	--vscode-editorError-background: #e514001a !important;
+	--vscode-editorGutter-modifiedBackground: #2090d3 !important;
+	--vscode-testing-iconPassed: #388a34 !important;
+	--vscode-diffEditor-insertedTextBackground: #9bb95533 !important;
+	--vscode-diffEditor-insertedTextBorder: transparent !important;
+	--vscode-diffEditor-removedTextBackground: #ff000033 !important;
+	--vscode-diffEditor-removedTextBorder: transparent !important;
+	--vscode-diffEditorGutter-insertedLineBackground: #9bb95533 !important;
+	--vscode-diffEditorGutter-removedLineBackground: #ff000033 !important;
+
+	--vscode-scrollbarSlider-background: #64646466 !important;
+	--vscode-scrollbarSlider-hoverBackground: #646464b3 !important;
+	--vscode-scrollbarSlider-activeBackground: #00000099 !important;
+	--vscode-keybindingLabel-background: #dddddd66 !important;
+	--vscode-keybindingLabel-foreground: #555555 !important;
+	--vscode-keybindingLabel-border: #cccccc66 !important;
+	--vscode-keybindingLabel-bottomBorder: #bbbbbb66 !important;
+
+	/* mermaid 扩展从这些 chart 颜色推导图表配色（vsCodeTheme.ts） */
+	--vscode-charts-foreground: #616161 !important;
+	--vscode-charts-lines: #61616180 !important;
+	--vscode-charts-blue: #007acc !important;
+	--vscode-charts-green: #388a34 !important;
+	--vscode-charts-orange: #d18616 !important;
+	--vscode-charts-red: #e51400 !important;
+	--vscode-charts-purple: #b180d7 !important;
+	--vscode-charts-yellow: #bf8803 !important;
+	--vscode-chart-line: #007acc !important;
+}
+
+html.wispkit-theme-dark {
+	color-scheme: dark;
+
+	--vscode-foreground: #cccccc !important;
+	--vscode-editor-background: #1e1e1e !important;
+	--vscode-editor-foreground: #d4d4d4 !important;
+	--vscode-sideBar-background: #252526 !important;
+	--vscode-editorWidget-background: #252526 !important;
+	--vscode-editorWidget-border: #454545 !important;
+	--vscode-panel-border: #80808059 !important;
+	--vscode-widget-border: #303031 !important;
+	--vscode-widget-shadow: #0000005c !important;
+	--vscode-contrastBorder: transparent !important;
+	--vscode-contrastActiveBorder: transparent !important;
+	--vscode-focusBorder: #007fd4 !important;
+
+	--vscode-textLink-foreground: #3794ff !important;
+	--vscode-textLink-activeForeground: #4daafc !important;
+	--vscode-textCodeBlock-background: #0a0a0a66 !important;
+	--vscode-textBlockQuote-background: #7f7f7f1a !important;
+	--vscode-textBlockQuote-border: #007acc80 !important;
+	--vscode-textPreformat-foreground: #d7ba7d !important;
+	--vscode-textPreformat-background: #ffffff1a !important;
+
+	--vscode-toolbar-hoverBackground: #5a5d5e50 !important;
+	--vscode-toolbar-activeBackground: #63666750 !important;
+	--vscode-list-hoverBackground: #2a2d2e !important;
+	--vscode-list-activeSelectionBackground: #094771 !important;
+	--vscode-list-activeSelectionForeground: #ffffff !important;
+
+	--vscode-input-background: #3c3c3c !important;
+	--vscode-input-foreground: #cccccc !important;
+	--vscode-input-border: #3c3c3c !important;
+	--vscode-inputValidation-errorBackground: #5a1d1d !important;
+	--vscode-inputValidation-errorBorder: #be1100 !important;
+	--vscode-dropdown-background: #3c3c3c !important;
+	--vscode-dropdown-foreground: #cccccc !important;
+	--vscode-dropdown-border: #3c3c3c !important;
+
+	--vscode-menu-background: #252526 !important;
+	--vscode-menu-foreground: #cccccc !important;
+	--vscode-menu-border: #454545 !important;
+	--vscode-menu-separatorBackground: #454545 !important;
+	--vscode-menu-selectionBackground: #094771 !important;
+	--vscode-menu-selectionForeground: #ffffff !important;
+	--vscode-button-background: #0e639c !important;
+	--vscode-button-foreground: #ffffff !important;
+
+	--vscode-editor-hoverHighlightBackground: #264f7840 !important;
+	--vscode-editorWarning-foreground: #cca700 !important;
+	--vscode-editorError-foreground: #f14c4c !important;
+	--vscode-editorError-background: #f14c4c1a !important;
+	--vscode-editorGutter-modifiedBackground: #1b81a8 !important;
+	--vscode-testing-iconPassed: #73c991 !important;
+	--vscode-diffEditor-insertedTextBackground: #9bb95533 !important;
+	--vscode-diffEditor-insertedTextBorder: transparent !important;
+	--vscode-diffEditor-removedTextBackground: #ff000033 !important;
+	--vscode-diffEditor-removedTextBorder: transparent !important;
+	--vscode-diffEditorGutter-insertedLineBackground: #9bb95533 !important;
+	--vscode-diffEditorGutter-removedLineBackground: #ff000033 !important;
+
+	--vscode-scrollbarSlider-background: #79797966 !important;
+	--vscode-scrollbarSlider-hoverBackground: #646464b3 !important;
+	--vscode-scrollbarSlider-activeBackground: #bfbfbf66 !important;
+	--vscode-keybindingLabel-background: #8080802b !important;
+	--vscode-keybindingLabel-foreground: #cccccc !important;
+	--vscode-keybindingLabel-border: #33333399 !important;
+	--vscode-keybindingLabel-bottomBorder: #44444499 !important;
+
+	/* mermaid 扩展从这些 chart 颜色推导图表配色（vsCodeTheme.ts） */
+	--vscode-charts-foreground: #cccccc !important;
+	--vscode-charts-lines: #cccccc80 !important;
+	--vscode-charts-blue: #3794ff !important;
+	--vscode-charts-green: #89d185 !important;
+	--vscode-charts-orange: #d18616 !important;
+	--vscode-charts-red: #f14c4c !important;
+	--vscode-charts-purple: #b180d7 !important;
+	--vscode-charts-yellow: #cca700 !important;
+	--vscode-chart-line: #3794ff !important;
+}
+
 /*
  * 零尺寸 sprite 必须脱离行内流。
  *
@@ -324,6 +504,129 @@ body {
 	white-space: pre-wrap;
 }
 
+/* ---------------------------------------------------------------- 正文查找 */
+
+/*
+ * 查找栏浮在正文右上角，不挤占排版；`hidden` 用作者样式显式兜底 ——
+ * UA 的 `[hidden]{display:none}` 会被下一条 `display:flex` 盖掉。
+ */
+.wispkit-find {
+	position: absolute;
+	top: 6px;
+	right: 18px;
+	z-index: 20;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 5px;
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, rgba(128, 128, 128, 0.45)));
+	border-radius: 4px;
+	background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background, #252526));
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36));
+}
+
+.wispkit-find[hidden] {
+	display: none;
+}
+
+.wispkit-find-input {
+	width: 210px;
+	max-width: 40vw;
+	margin: 0;
+	padding: 2px 6px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 3px;
+	background: var(--vscode-input-background, transparent);
+	color: var(--vscode-input-foreground, var(--vscode-foreground));
+	font: inherit;
+	font-size: 12px;
+	outline: none;
+}
+
+.wispkit-find-input:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+.wispkit-find-count {
+	min-width: 52px;
+	padding: 0 2px;
+	color: var(--vscode-descriptionForeground, var(--vscode-foreground));
+	font-size: 11px;
+	line-height: 18px;
+	text-align: center;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+.wispkit-find-count.wispkit-find-empty {
+	color: var(--vscode-errorForeground, #f14c4c);
+}
+
+.wispkit-find-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: 3px;
+	background: transparent;
+	color: var(--vscode-foreground);
+	font: inherit;
+	font-size: 11px;
+	cursor: pointer;
+}
+
+.wispkit-find-btn:hover {
+	background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+}
+
+.wispkit-find-btn:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.wispkit-find-btn[aria-pressed='true'],
+.wispkit-find-btn.wispkit-find-active {
+	background: var(--vscode-inputOption-activeBackground, var(--vscode-focusBorder));
+	color: var(--vscode-inputOption-activeForeground, var(--vscode-button-foreground, #ffffff));
+}
+
+.wispkit-find-btn .wispkit-btn-icon {
+	width: 12px;
+	height: 12px;
+}
+
+/*
+ * 关键字高亮。
+ * - 现代引擎走 CSS Custom Highlight API，不产生任何 DOM；
+ * - 老引擎走 `<mark class="wispkit-find-hit">`（find.js 的退回路径）。
+ * 颜色取 VS Code 查找的经典配色，深浅主题下都保持可读。
+ */
+::highlight(wispkit-find-match) {
+	/* 不用 var()：Highlight 伪元素的属性集受限，自定义属性在部分引擎里不参与替换，
+	   整条声明会被判无效 —— 表现为"有命中但完全看不到高亮"。 */
+	background-color: rgba(234, 92, 0, 0.28);
+}
+
+::highlight(wispkit-find-current) {
+	background-color: #ff9632;
+	color: #000000;
+}
+
+.wispkit-find-hit {
+	border-radius: 2px;
+	background-color: rgba(234, 92, 0, 0.28);
+	color: inherit;
+}
+
+.wispkit-find-hit.wispkit-find-current {
+	background-color: #ff9632;
+	color: #000000;
+}
+
 /* 放大预览：基本占满主窗口，滚轮缩放、按住右键平移 */
 .wispkit-lightbox {
 	position: fixed;
@@ -375,8 +678,13 @@ body {
 }
 
 .wispkit-lightbox-stage {
+	/* flex 项默认可收缩：`width: 3342px` 会被压回 574px 而高度不受限，
+	   宽高比一破，矢量图就被硬拉变形（实测 mermaid 节点横向缩到 1/6，
+	   看着既模糊又串色）。所以禁止收缩，让脚本设的尺寸说了算。
+	   不再写 `will-change: transform`：它会把内容栅格化成一层位图，
+	   后续缩放只是拉伸那张位图 —— 这正是"放大反而更模糊"的来源。 */
+	flex: 0 0 auto;
 	transform-origin: center center;
-	will-change: transform;
 }
 
 .wispkit-lightbox-image {
@@ -398,6 +706,10 @@ body.wispkit-lightbox-open {
 	position: fixed;
 	z-index: 30;
 	min-width: 170px;
+	max-height: min(70vh, 620px);
+	overflow: auto;
+	/* 与子树 / 对比浏览的菜单一致：菜单内部滚动不关菜单，滚到边界也不牵连页面 */
+	overscroll-behavior: contain;
 	padding: 4px;
 	border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border, rgba(128, 128, 128, 0.35)));
 	border-radius: 5px;
@@ -439,10 +751,92 @@ body.wispkit-lightbox-open {
 
 /* 正文容器 */
 .wispkit-main {
+	position: relative;
 	display: flex;
 	flex: 1 1 auto;
 	min-width: 0;
 	min-height: 0;
+}
+
+/* ---------------------------------------------------------------- 正文多级缩放 */
+
+/*
+ * 缩放写在正文层上（脚本设行内 `zoom`），不写滚动容器：
+ * 滚动容器被 zoom 时它自己的宽高也会被放大，既溢出布局、`scrollHeight` 又不含缩放，
+ * 滚到底也看不全。普通 auto 宽度的内层块则会被 Chromium 按「先按 1/zoom 排版再放大」
+ * 处理，正文宽度不变、文字与图表同比放大，`scrollHeight` 也正确。见 shared/pagezoom.js。
+ */
+.wispkit-zoom-layer {
+	min-height: 100%;
+}
+
+/*
+ * 大文档虚拟化：视口外的顶层块跳过排版与绘制。
+ * `contain-intrinsic-size` 的 auto 关键字会记住块第一次渲染后的真实尺寸，
+ * 后续滚动不再估；没渲染过时用后面的估值兜底（表格 / 图通常远比段落高）。
+ */
+.wispkit-zoom-layer.wispkit-virtualized > * {
+	content-visibility: auto;
+	contain-intrinsic-size: auto 48px;
+}
+
+.wispkit-zoom-layer.wispkit-virtualized > table,
+.wispkit-zoom-layer.wispkit-virtualized > .mermaid,
+.wispkit-zoom-layer.wispkit-virtualized > .drawio,
+.wispkit-zoom-layer.wispkit-virtualized > .mxgraph {
+	contain-intrinsic-size: auto 420px;
+}
+
+.wispkit-zoom-layer.wispkit-virtualized > pre {
+	contain-intrinsic-size: auto 180px;
+}
+
+/*
+ * 图块不虚拟化。内置 mermaid 扩展会把 `.mermaid` 包进 `.mermaid-wrapper`，
+ * 在下一帧里对 SVG 调 `getBoundingClientRect()` 决定容器高度；若 wrapper 被
+ * `content-visibility: auto` 跳过，子树不参与布局，量到 0×0 —— 容器高度被写成 0，
+ * 后续滚到眼前也是一片空白。表格 / 代码 / 段落照旧跳过，性能收益仍在。
+ * 这个类由 markdown.js 的 mutate 观察器在 wrapper 插入的同一轮微任务里补上，
+ * 早于 mermaid 自己的 requestAnimationFrame 初始化。
+ */
+.wispkit-zoom-layer.wispkit-virtualized > .wispkit-virtualize-keep {
+	content-visibility: visible;
+	contain-intrinsic-size: none;
+}
+
+/*
+ * 查找时临时关掉虚拟化：`Range.getClientRects()` 对未渲染的块返回空，
+ * 跳转与高亮都拿不到位置；搜索期间正文本来就只读，慢一点可以接受。
+ */
+.wispkit-content.wispkit-find-open .wispkit-zoom-layer.wispkit-virtualized > * {
+	content-visibility: visible;
+	contain-intrinsic-size: none;
+}
+
+.wispkit-zoom-group {
+	display: inline-flex;
+	align-items: center;
+	flex: none;
+	gap: 1px;
+}
+
+.wispkit-zoom-value {
+	min-width: 48px;
+	justify-content: center;
+	font-variant-numeric: tabular-nums;
+}
+
+.wispkit-btn-icon-only {
+	padding: 2px 5px;
+}
+
+.wispkit-btn:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.wispkit-btn:disabled:hover {
+	background: transparent;
 }
 
 .wispkit-dirty[hidden],
@@ -460,6 +854,89 @@ body.wispkit-lightbox-open {
 .wispkit-btn-icon {
 	display: block;
 	flex: none;
+	width: 14px;
+	height: 14px;
+}
+
+/* Mermaid 图表主题下拉框：跟随主题 / default / forest / dark / neutral / base。
+   用原生 <select>，配色走 VS Code 的 dropdown 变量，明暗主题（含强制明暗）都自动跟随。 */
+.wispkit-mermaid-theme {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	flex: none;
+}
+
+.wispkit-mermaid-theme-label {
+	font-size: 11px;
+	opacity: 0.75;
+	user-select: none;
+}
+
+.wispkit-mermaid-theme select {
+	font: inherit;
+	font-size: 11px;
+	height: 20px;
+	max-width: 118px;
+	padding: 0 2px;
+	color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+	background: var(--vscode-dropdown-background, var(--vscode-input-background, transparent));
+	border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border, rgba(128, 128, 128, 0.35)));
+	border-radius: 2px;
+	cursor: pointer;
+}
+
+.wispkit-mermaid-theme select:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 0;
+}
+
+/* 主题三态 = 三段式图标按钮（左浅色 / 中跟随主题 / 右深色）。
+   选中态只看 `aria-pressed` —— 脚本只改这一个属性，不碰 class 与子节点，
+   与「编辑」滑动开关是同一套约定。 */
+.wispkit-theme-switch {
+	display: inline-flex;
+	align-items: center;
+	flex: none;
+	border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+	border-radius: 999px;
+	overflow: hidden;
+}
+
+.wispkit-theme-option {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 20px;
+	margin: 0;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+.wispkit-theme-option + .wispkit-theme-option {
+	border-left: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+}
+
+.wispkit-theme-option:hover {
+	background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+}
+
+.wispkit-theme-option:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.wispkit-theme-option[aria-pressed='true'] {
+	background: var(--vscode-focusBorder, var(--vscode-button-background));
+	color: var(--vscode-button-foreground, #ffffff);
+	cursor: default;
+}
+
+.wispkit-theme-option .wispkit-btn-icon {
 	width: 14px;
 	height: 14px;
 }
@@ -573,12 +1050,16 @@ body.wispkit-lightbox-open {
 	font-size: var(--vscode-editor-font-size, 13px);
 	line-height: 1.6;
 	tab-size: 4;
-	white-space: pre;
-	overflow-x: auto;
+	/* 自动换行：Markdown 源码里一段通常是**一整行**，`pre` + 不换行时编辑框永远只有
+	   一行高（横向滚动条里藏着一大段），看起来就像"框太小"。改 pre-wrap 后行数按
+	   可视宽度折出来，`fitParagraphInput` 量的 scrollHeight 也才是真实需要的高度。 */
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	overflow-x: hidden;
 	overflow-y: auto;
 	/* 高度由脚本按内容设（见 media/markdown.js 的 fitParagraphInput）；
-	   超长段落封顶在 60vh，超出部分内部滚动，避免把整页撑爆。 */
-	max-height: 60vh;
+	   超长段落封顶在 70vh，超出部分内部滚动，避免把整页撑爆。 */
+	max-height: 70vh;
 	resize: vertical;
 }
 

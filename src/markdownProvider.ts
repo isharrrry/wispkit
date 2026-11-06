@@ -1,11 +1,25 @@
 import * as vscode from 'vscode';
 import { readMarkdownPreviewTypography, readMarkdownViewConfig } from './config';
 import { collectMarkdownContributions, hasMarkdownPreviewResources } from './markdown/contributions';
+import {
+	MARKDOWN_MERMAID_THEME_STATE_KEY,
+	applyMermaidThemeToBodyHtml,
+	isMarkdownMermaidTheme,
+	normalizeMarkdownMermaidTheme,
+	type MarkdownMermaidTheme,
+} from './markdown/mermaidTheme';
 import { renderMarkdownPage } from './markdown/page';
 import { renderMarkdownHtml } from './markdown/render';
+import {
+	MARKDOWN_THEME_STATE_KEY,
+	isMarkdownThemeMode,
+	normalizeMarkdownThemeMode,
+	type MarkdownThemeMode,
+} from './markdown/theme';
 import { runMediaAction, type MediaRequest } from './mediaActions';
 import { strictContentSecurityPolicy } from './util/csp';
 import { escapeHtml } from './util/html';
+import { openWebviewLinkSafely } from './util/linkOpen';
 import { generateNonce } from './util/nonce';
 
 export const MARKDOWN_VIEW_TYPE = 'wispkit.markdown';
@@ -33,7 +47,53 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 		);
 	}
 
+	/**
+	 * 打开中的 Markdown webview。主题是**全局**的：在一个文档里切换，
+	 * 其它已打开的 Markdown 标签页要同时变；新开的标签页从 globalState 取初值。
+	 */
+	private readonly webviews = new Set<vscode.Webview>();
+
 	constructor(private readonly context: vscode.ExtensionContext) { }
+
+	/** 当前全局主题模式；`globalState` 里是任何值都按默认「跟随主题」处理。 */
+	private themeMode(): MarkdownThemeMode {
+		return normalizeMarkdownThemeMode(this.context.globalState.get(MARKDOWN_THEME_STATE_KEY));
+	}
+
+	/** 当前全局 Mermaid 图表主题；非法值回落到内置扩展的默认 `vscode`。 */
+	private mermaidTheme(): MarkdownMermaidTheme {
+		return normalizeMarkdownMermaidTheme(this.context.globalState.get(MARKDOWN_MERMAID_THEME_STATE_KEY));
+	}
+
+	/**
+	 * 切换全局 Mermaid 主题并广播给所有 Markdown 视图。
+	 * 与明暗主题同一约定：非法值直接忽略，不能 normalize 成默认值。
+	 */
+	private async setMermaidTheme(value: unknown): Promise<void> {
+		if (!isMarkdownMermaidTheme(value) || value === this.mermaidTheme()) {
+			return;
+		}
+		await this.context.globalState.update(MARKDOWN_MERMAID_THEME_STATE_KEY, value);
+		for (const webview of this.webviews) {
+			void webview.postMessage({ type: 'wispkit.mermaidTheme', theme: value });
+		}
+	}
+
+	/**
+	 * 切换全局主题并广播给所有 Markdown 视图。
+	 *
+	 * **只认合法的三态值**：非法消息直接忽略，不能经 `normalize` 回落成 auto ——
+	 * 那会把一个手滑的消息变成「悄悄切回跟随主题」。
+	 */
+	private async setThemeMode(value: unknown): Promise<void> {
+		if (!isMarkdownThemeMode(value) || value === this.themeMode()) {
+			return;
+		}
+		await this.context.globalState.update(MARKDOWN_THEME_STATE_KEY, value);
+		for (const webview of this.webviews) {
+			void webview.postMessage({ type: 'wispkit.theme', mode: value });
+		}
+	}
 
 	public async resolveCustomTextEditor(
 		document: vscode.TextDocument,
@@ -41,6 +101,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 		_token: vscode.CancellationToken,
 	): Promise<void> {
 		const webview = webviewPanel.webview;
+		this.webviews.add(webview);
 
 		webview.options = {
 			enableScripts: true,
@@ -58,7 +119,12 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 				(command, ...args) => vscode.commands.executeCommand(command, ...args),
 				{ uri: document.uri, getText: () => text },
 			);
-			return result.html || this.renderRenderError(result.error);
+			// 内置 Mermaid 扩展在渲染时前置了一个配置 span；把明暗两套主题改成用户选中的
+			// 那个再交给 webview。必须在这里做（而不是等前端脚本），否则 async 模块脚本
+			// 可能先于前端执行，首屏图表会先按旧主题画一次。
+			return result.html
+				? applyMermaidThemeToBodyHtml(result.html, this.mermaidTheme())
+				: this.renderRenderError(result.error);
 		};
 
 		webview.html = this.buildPage(webview, document, await renderText(document.getText()));
@@ -91,6 +157,22 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 				case 'wispkit.media':
 					void this.handleMediaMessage(document, message);
 					break;
+				case 'wispkit.openLink':
+					// 前端截住了 <a> 点击：把原始 href 按文档位置解析后在本窗口打开。
+					// 不能交给 webview 外壳 —— `<base>` 会把相对链接变成 https 资源 URL，
+					// 外壳按外部链接丢给系统浏览器。
+					if (typeof message.href === 'string') {
+						await openWebviewLinkSafely(document.uri, message.href);
+					}
+					break;
+				case 'wispkit.setTheme':
+					// 全局主题：落盘并广播给所有 Markdown 视图（含发起方自己）。
+					await this.setThemeMode(message.mode);
+					break;
+				case 'wispkit.setMermaidTheme':
+					// 全局 Mermaid 图表主题：同上，落盘后广播。
+					await this.setMermaidTheme(message.theme);
+					break;
 			}
 		});
 
@@ -120,6 +202,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 		});
 
 		webviewPanel.onDidDispose(() => {
+			this.webviews.delete(webview);
 			if (timer) {
 				clearTimeout(timer);
 			}
@@ -153,6 +236,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 			bodyHtml,
 			config: readMarkdownViewConfig(),
 			typography: readMarkdownPreviewTypography(),
+			themeMode: this.themeMode(),
+			mermaidTheme: this.mermaidTheme(),
 		});
 	}
 

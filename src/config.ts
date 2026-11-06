@@ -17,7 +17,7 @@ export function readMarkdownViewConfig(): MarkdownViewConfig {
 	const config = vscode.workspace.getConfiguration('wispkit');
 	return {
 		tocEnabled: config.get<boolean>('toc.enabled', true),
-		tocDepth: numberSetting(config, 'toc.depth', 3, 1),
+		tocDepth: numberSetting(config, 'toc.depth', 6, 1),
 	};
 }
 

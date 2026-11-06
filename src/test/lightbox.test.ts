@@ -230,3 +230,43 @@ describe('lightbox: #id 作用域的图形样式', () => {
 		assert.strictEqual(stage.querySelector('svg')!.getAttribute('id'), null);
 	});
 });
+
+/** 复现用户报的那张图：viewBox 3342×1350，比容器大得多。 */
+function makeWideSvg(doc: Document, id = 'mermaid-wide') {
+	const svg = doc.createElementNS(SVG_NS, 'svg');
+	svg.setAttribute('id', id);
+	svg.setAttribute('width', '100%');
+	svg.setAttribute('style', 'max-width: 3342.09px;');
+	svg.setAttribute('viewBox', '2 2 3342.09 1350.5');
+	return svg;
+}
+
+describe('lightbox：矢量图按布局尺寸缩放（放大要清晰，不能被压扁）', () => {
+	it('svg 走 box 缩放：宽高按比例算出，stage 上没有 scale()', () => {
+		const { doc, lightbox, viewport, stage } = setup();
+		Object.defineProperty(viewport, 'clientWidth', { value: 400 });
+		Object.defineProperty(viewport, 'clientHeight', { value: 400 });
+
+		assert.ok(lightbox.openSvg(makeWideSvg(doc)));
+
+		// 3342×1350 放进 400×400：fit = min(400/3342, 400/1350, 1) = 0.11969…
+		const expected = 400 / 3342.09;
+		assert.ok(Math.abs(parseFloat(stage.style.width) - 3342.09 * expected) < 0.5, `实际 width=${stage.style.width}`);
+		assert.ok(Math.abs(parseFloat(stage.style.height) - 1350.5 * expected) < 0.5, `实际 height=${stage.style.height}`);
+		assert.ok(!/scale\(/.test(stage.style.transform ?? ''), `矢量不该用 scale()，实际 "${stage.style.transform}"`);
+
+		// 原始宽高比必须保住（被 flex 压扁过一次，就是"模糊 + 串色"的根因）
+		const ratioIn = 3342.09 / 1350.5;
+		const ratioOut = parseFloat(stage.style.width) / parseFloat(stage.style.height);
+		assert.ok(Math.abs(ratioIn - ratioOut) < 0.01, `宽高比必须一致，原 ${ratioIn} 实际 ${ratioOut}`);
+	});
+
+	it('图片仍走 transform 缩放（位图，放很大时可切 pixelated）', () => {
+		const { doc, lightbox, viewport, stage } = setup();
+		Object.defineProperty(viewport, 'clientWidth', { value: 800 });
+		Object.defineProperty(viewport, 'clientHeight', { value: 600 });
+
+		assert.ok(lightbox.openImage(makeImage(doc, 1600, 1200)));
+		assert.ok(/scale\(0\.5\)/.test(stage.style.transform), `实际 "${stage.style.transform}"`);
+	});
+});

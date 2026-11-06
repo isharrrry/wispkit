@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { buildHtmlFromSource } from './html/page';
+import { openWebviewLinkSafely } from './util/linkOpen';
 
 export const HTML_VIEW_TYPE = 'wispkit.html';
 
@@ -41,6 +42,10 @@ export class HtmlEditorProvider implements vscode.CustomTextEditorProvider {
 			localResourceRoots: collectLocalResourceRoots(this.context, document.uri),
 		};
 
+		const scriptSrc = webview.asWebviewUri(
+			vscode.Uri.joinPath(this.context.extensionUri, 'media', 'dist', 'html.js'),
+		).toString();
+
 		const update = () => {
 			let baseHref: string | undefined;
 			try {
@@ -48,9 +53,19 @@ export class HtmlEditorProvider implements vscode.CustomTextEditorProvider {
 			} catch {
 				baseHref = undefined;
 			}
-			webview.html = buildHtmlFromSource(document.getText(), baseHref, webview.cspSource);
+			webview.html = buildHtmlFromSource(document.getText(), {
+				baseHref,
+				cspSource: webview.cspSource,
+				scriptSrc,
+			});
 		};
 		update();
+
+		const messageSubscription = webview.onDidReceiveMessage(message => {
+			if (message?.type === 'wispkit.openLink' && typeof message.href === 'string') {
+				void openWebviewLinkSafely(document.uri, message.href);
+			}
+		});
 
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		const changeSubscription = vscode.workspace.onDidChangeTextDocument(event => {
@@ -68,6 +83,7 @@ export class HtmlEditorProvider implements vscode.CustomTextEditorProvider {
 				clearTimeout(timer);
 			}
 			changeSubscription.dispose();
+			messageSubscription.dispose();
 		});
 	}
 }

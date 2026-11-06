@@ -48,7 +48,10 @@ describe('html/page', () => {
 	describe('buildHtmlFromSource', () => {
 		it('注入 CSP 与 base，并改写 vscode://file 链接', () => {
 			const source = '<html><head></head><body><a href="vscode://file/d:/a/b.md:207">go</a></body></html>';
-			const result = buildHtmlFromSource(source, 'vscode-webview://abc123/doc.html', CSP_SOURCE);
+			const result = buildHtmlFromSource(source, {
+				baseHref: 'vscode-webview://abc123/doc.html',
+				cspSource: CSP_SOURCE,
+			});
 
 			assert.ok(result.includes('Content-Security-Policy'));
 			assert.ok(result.includes('<base href="vscode-webview://abc123/doc.html">'));
@@ -57,9 +60,25 @@ describe('html/page', () => {
 		});
 
 		it('没有 baseHref 时不注入 base', () => {
-			const result = buildHtmlFromSource('<p>x</p>', undefined, CSP_SOURCE);
+			const result = buildHtmlFromSource('<p>x</p>', { cspSource: CSP_SOURCE });
 			assert.ok(!result.includes('<base'));
 			assert.ok(result.includes('Content-Security-Policy'));
+		});
+
+		it('注入链接路由脚本（defer，且在 page 自己的脚本之前）', () => {
+			const source = '<html><head><script src="app.js"></script></head><body></body></html>';
+			const result = buildHtmlFromSource(source, {
+				cspSource: CSP_SOURCE,
+				scriptSrc: 'vscode-webview://abc123/html.js',
+			});
+
+			assert.ok(result.includes('<script defer src="vscode-webview://abc123/html.js"></script>'));
+			assert.ok(result.indexOf('html.js') < result.indexOf('app.js'), '路由脚本必须先于页面脚本就位');
+		});
+
+		it('没有 scriptSrc 时不注入脚本', () => {
+			const result = buildHtmlFromSource('<p>x</p>', { cspSource: CSP_SOURCE });
+			assert.ok(!result.includes('<script'));
 		});
 	});
 });

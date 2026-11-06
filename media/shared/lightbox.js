@@ -16,6 +16,9 @@ export function createLightbox(options) {
 	let panzoom = null;
 	let observer = null;
 	let open = false;
+	/** 当前内容的原始尺寸（px）。缩放以它为基准，而不是去量 DOM ——
+	 *  stage 的布局尺寸可能被父级 flex 压缩过，量到的是被压扁的宽度。 */
+	let size = null;
 
 	const updateZoomLabel = () => {
 		if (!zoomElement || !panzoom) {
@@ -43,6 +46,7 @@ export function createLightbox(options) {
 		observer = null;
 		panzoom?.dispose();
 		panzoom = null;
+		size = null;
 		stage.removeAttribute('style');
 		stage.replaceChildren();
 		root.hidden = true;
@@ -127,12 +131,13 @@ export function createLightbox(options) {
 		if (!element) {
 			return false;
 		}
-		const size = measure(element);
-		if (!size.width || !size.height) {
+		const measured = measure(element);
+		if (!measured.width || !measured.height) {
 			return false;
 		}
 
 		close();
+		size = { width: measured.width, height: measured.height };
 		stage.style.width = `${size.width}px`;
 		stage.style.height = `${size.height}px`;
 		stage.replaceChildren(buildContent(kind, element));
@@ -148,6 +153,10 @@ export function createLightbox(options) {
 			wheelStep: options.wheelStep ?? 1.1,
 			dragButton: options.dragButton ?? 'right',
 			wheelZoom: isWheelZoomEnabled,
+			// 图片是位图，`scale()` 缩放 + pixelated 才有意义；svg 是矢量，
+			// 必须改布局尺寸，否则放得越大越模糊（见 panzoom.js 的 scaleMode 注释）。
+			scaleMode: kind === 'image' ? 'transform' : 'box',
+			size: () => size,
 		});
 		panzoom.fit();
 		observeStage();

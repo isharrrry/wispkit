@@ -1,10 +1,15 @@
 import * as fs from 'fs';
+import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS } from '../media/formats';
 
 /**
  * 已由 Wispkit 其他视图承载的类型：只读模式**不再拦截**它们 ——
  * 那些本来就是浏览视图（不写文件），而截断 Markdown 会让渲染结果不完整。
+ * 扩展名清单与 `media/formats.ts` 共用，避免图片 / 视频新增格式后只读模式又把它们抢走。
  */
-export const HANDLED_ELSEWHERE = /\.(md|markdown|html?|xaml|png|jpe?g|jpe|bmp|gif|ico|webp|avif)$/i;
+export const HANDLED_ELSEWHERE = new RegExp(
+	`\\.(?:md|markdown|html|htm|xaml|${[...IMAGE_EXTENSIONS, ...VIDEO_EXTENSIONS].join('|')})$`,
+	'i',
+);
 
 export interface ReadonlyPreview {
 	readonly text: string;

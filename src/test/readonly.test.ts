@@ -130,14 +130,18 @@ describe('readonly/page', () => {
 });
 
 describe('readonly/intercept: 拦截范围', () => {
-	it('已被其他 Wispkit 视图承载的类型不再拦截', () => {
-		for (const file of ['a.md', 'b.MARKDOWN', 'c.html', 'd.htm', 'e.xaml', 'f.PNG', 'g.jpeg', 'h.svg'.replace('svg', 'webp')]) {
+	it('已被其他 Wispkit 视图承载的类型不再拦截（含 SVG / HEIF / 视频）', () => {
+		for (const file of [
+			'a.md', 'b.MARKDOWN', 'c.html', 'd.htm', 'e.xaml',
+			'f.PNG', 'g.jpeg', 'h.webp', 'i.svg', 'j.SVG', 'k.heic', 'l.heif', 'm.tiff',
+			'n.mp4', 'o.MKV', 'p.webm', 'q.rmvb',
+		]) {
 			assert.ok(HANDLED_ELSEWHERE.test(file), `${file} 应被排除`);
 		}
 	});
 
-	it('普通文本文件会被拦截', () => {
-		for (const file of ['a.ts', 'b.json', 'c.txt', 'd.log', 'e.py']) {
+	it('普通文本文件（包括 TypeScript 的 .ts）会被拦截', () => {
+		for (const file of ['a.ts', 'a.mts', 'b.json', 'c.txt', 'd.log', 'e.py']) {
 			assert.ok(!HANDLED_ELSEWHERE.test(file), `${file} 不应被排除`);
 		}
 	});

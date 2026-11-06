@@ -55,6 +55,24 @@ describe('util/linkRewrite', () => {
 			assert.strictEqual((args[1] as any).selection.start.line, 0);
 		});
 
+		it('markdown-it 编码的 %3A 也能拆出行号', () => {
+			const args = decodeArgs(rewriteVscodeFileLink('vscode://file/d%3A/a%2Fb.md%3A7')!);
+			assert.strictEqual(args[0], 'file:///d:/a/b.md');
+			assert.strictEqual((args[1] as any).selection.start.line, 6);
+		});
+
+		it('#L10 fragment → 行号，不会被编码进文件名', () => {
+			const args = decodeArgs(rewriteVscodeFileLink('vscode://file/d:/a/b.md#L10')!);
+			assert.strictEqual(args[0], 'file:///d:/a/b.md');
+			assert.strictEqual((args[1] as any).selection.start.line, 9);
+		});
+
+		it('普通 fragment（标题锚点）被丢弃，路径里不出现 %23', () => {
+			const command = rewriteVscodeFileLink('vscode://file/d:/a/b.md#section')!;
+			assert.ok(!command.includes('%2523') && !command.includes('%23'), 'fragment 不能混进文件路径');
+			assert.strictEqual(decodeArgs(command)[0], 'file:///d:/a/b.md');
+		});
+
 		it('非 vscode://file 形式 → undefined（调用方保持原样）', () => {
 			assert.strictEqual(rewriteVscodeFileLink('https://example.com'), undefined);
 			assert.strictEqual(rewriteVscodeFileLink('vscode://command/foo'), undefined);

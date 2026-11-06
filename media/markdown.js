@@ -1,5 +1,6 @@
 import { createContextMenu } from './shared/contextmenu.js';
 import { createLightbox } from './shared/lightbox.js';
+import { installLinkRouter } from './shared/links.js';
 import {
 	blockStartLine,
 	countLines,
@@ -10,6 +11,8 @@ import {
 	replaceParagraphVerbatim,
 	sliceParagraphVerbatim,
 } from './shared/paragraph.js';
+import { createFinder } from './shared/find.js';
+import { createPageZoom } from './shared/pagezoom.js';
 import { createTableOfContents } from './shared/toc.js';
 
 function readConfig() {
@@ -76,12 +79,344 @@ const storage = {
 	},
 };
 
+/* ---------------------------------------------------------------- 主题三态 */
+
+/**
+ * `light` / `auto` / `dark` —— 顺序就是工具栏里从左到右的三个图标。
+ *
+ * `auto` 完全跟随 VS Code 当前颜色主题；另外两个是**强制**明暗，靠
+ * `media/markdown.css` 里 `html.wispkit-theme-*` 覆盖 `--vscode-*` 变量。
+ *
+ * 状态是**全局**的：由宿主存在 `globalState` 并广播给所有 Markdown webview。
+ * webview 自己的 `localStorage` / `state` 按面板隔离，做得到「当前文档记住」，
+ * 做不到用户要的「对所有 md 文档生效」。
+ */
+const THEME_MODES = ['light', 'auto', 'dark'];
+const DEFAULT_THEME_MODE = 'auto';
+/** webview 宿主写在 body 上的明暗类别（VS Code pre/index.html 的 applyStyles）。 */
+const HOST_THEME_CLASSES = ['vscode-light', 'vscode-dark', 'vscode-high-contrast', 'vscode-high-contrast-light'];
+
+function isThemeMode(value) {
+	return THEME_MODES.includes(value);
+}
+
+function normalizeThemeMode(value) {
+	return isThemeMode(value) ? value : DEFAULT_THEME_MODE;
+}
+
+function readHostThemeKind() {
+	const kind = document.body?.dataset?.vscodeThemeKind;
+	return typeof kind === 'string' ? kind : '';
+}
+
+/** 首屏模式来自服务端写在 `<html data-wispkit-theme>` 上的值（避免先闪一下再跳）。 */
+let themeMode = normalizeThemeMode(document.documentElement?.dataset?.wispkitTheme);
+/** 宿主真实的明暗类别；强制模式会临时改掉 body 的类，切回「跟随」时靠它还原。 */
+let hostThemeKind = readHostThemeKind();
+
+function forcedBodyClass(mode) {
+	return mode === 'light' ? 'vscode-light' : mode === 'dark' ? 'vscode-dark' : null;
+}
+
+/**
+ * 强制模式要连 body 的明暗类别一起改：内置 `markdown.css` 仍按
+ * `.vscode-light` / `.vscode-dark` 选标题与表格边线，mermaid 预览扩展也按它
+ * 决定图表明暗（`vsCodeTheme.ts` 的 `isDarkVsCodeTheme`）。只改 `<html>` 的类，
+ * 正文换了、图表还是另一套配色。
+ */
+function syncForcedBodyKind() {
+	const body = document.body;
+	const target = forcedBodyClass(themeMode);
+	if (!body || !target) {
+		return;
+	}
+	const alreadyClean = body.classList.contains(target)
+		&& HOST_THEME_CLASSES.every(kind => kind === target || !body.classList.contains(kind));
+	if (alreadyClean) {
+		return;
+	}
+	body.classList.remove(...HOST_THEME_CLASSES);
+	body.classList.add(target);
+}
+
+/** 切回「跟随主题」：把 body 的类别还原成宿主当前的主题类别。 */
+function restoreHostBodyKind() {
+	const body = document.body;
+	if (!body) {
+		return;
+	}
+	const kind = hostThemeKind || readHostThemeKind();
+	body.classList.remove(...HOST_THEME_CLASSES);
+	if (HOST_THEME_CLASSES.includes(kind)) {
+		body.classList.add(kind);
+		// 高对比浅色在 VS Code 里同时带 `vscode-high-contrast`（向后兼容）
+		if (kind === 'vscode-high-contrast-light') {
+			body.classList.add('vscode-high-contrast');
+		}
+	}
+}
+
+/** 三个按钮的选中态只看 `aria-pressed`，脚本不碰 class / 子节点（与编辑开关同一约定）。 */
+function syncThemeButtons() {
+	for (const button of document.querySelectorAll('.wispkit-theme-option')) {
+		button.setAttribute('aria-pressed', button.dataset.themeMode === themeMode ? 'true' : 'false');
+	}
+}
+
+/**
+ * 应用主题模式。
+ * - `persist: false`：宿主广播回来的消息，不能再发一次，否则来回打转；
+ * - `notify: false`：首屏初始化，第三方脚本本来就会按当前主题首次渲染。
+ */
+function applyThemeMode(mode, { notify = true, persist = true } = {}) {
+	const next = normalizeThemeMode(mode);
+	const changed = next !== themeMode;
+	themeMode = next;
+
+	const root = document.documentElement;
+	if (root) {
+		root.classList.toggle('wispkit-theme-light', next === 'light');
+		root.classList.toggle('wispkit-theme-dark', next === 'dark');
+		root.classList.toggle('wispkit-theme-auto', next === 'auto');
+		root.dataset.wispkitTheme = next;
+	}
+
+	syncThemeButtons();
+	if (next === 'auto') {
+		// 首屏本来就是 auto：body 的类别归宿主所有，不能动
+		if (changed) {
+			const kind = readHostThemeKind();
+			if (kind) {
+				hostThemeKind = kind;
+			}
+			restoreHostBodyKind();
+		}
+	} else {
+		syncForcedBodyKind();
+	}
+
+	if (changed && notify) {
+		// mermaid 等第三方脚本按 body 明暗与实时 CSS 变量渲染，主题变了必须让它们重画。
+		// **重画前必须先把已渲染的图表还原成源码**：内置 mermaid 脚本的 init 会先删掉
+		// `.mermaid > svg`，再读容器的 textContent 当源码 —— 不还原就只剩空字符串，
+		// 图会直接消失（用户反馈的「切主题 mermaid 变空白」）。
+		refreshMermaidDiagrams();
+	}
+	if (persist) {
+		hostApi?.postMessage({ type: 'wispkit.setTheme', mode: next });
+	}
+	return next;
+}
+
+/**
+ * 宿主换主题（或初始化时第一次写 body 类）会改 body 的 class 与
+ * `data-vscode-theme-kind`：
+ * - `auto`：配色已被宿主换好，只需叫第三方脚本重画（mermaid 不会自己重渲染）；
+ * - 强制：把被宿主覆盖掉的明暗类别重新压回目标值。
+ *
+ * 回调里先判断「是否已经一致」再写：我们自己的写入会再触发一轮，第二轮直接收敛，
+ * 不会死循环。
+ */
+const themeKindObserver = {
+	observer: null,
+
+	start() {
+		const Ctor = document.body?.ownerDocument?.defaultView?.MutationObserver ?? null;
+		if (!Ctor) {
+			return;
+		}
+		this.observer = new Ctor(() => this.handle());
+		this.observer.observe(document.body, { attributes: true, attributeFilter: ['class', 'data-vscode-theme-kind'] });
+	},
+
+	handle() {
+		const kind = readHostThemeKind();
+		const previous = hostThemeKind;
+		const hostChanged = kind !== '' && kind !== previous;
+		if (kind !== '') {
+			hostThemeKind = kind;
+		}
+		if (themeMode === 'auto') {
+			// 初始化时宿主第一次写类不算「换主题」，不必让第三方脚本白重画一次。
+			// 真换了主题同样要先还原 mermaid 源码，原因见 applyThemeMode。
+			if (previous !== '' && hostChanged) {
+				refreshMermaidDiagrams();
+			}
+			return;
+		}
+		syncForcedBodyKind();
+	},
+};
+
 const config = readConfig();
 const content = document.getElementById('wispkit-content');
 const nav = document.getElementById('wispkit-toc');
 const editorToggle = document.getElementById('wispkit-editor-toggle');
 const saveButton = document.getElementById('wispkit-save');
 const dirtyBadge = document.getElementById('wispkit-dirty');
+/**
+ * 正文层：工具栏缩放作用在它身上（不是滚动容器本身，原因见 shared/pagezoom.js）。
+ * 老页面 / 测试里若没有这一层，退回 content，功能照常但缩放会作用在滚动容器上。
+ */
+const zoomLayer = document.getElementById('wispkit-zoom-layer') ?? content;
+
+/* ---------------------------------------------------------------- Mermaid 图表主题 */
+
+/**
+ * 与内置 mermaid-markdown-features 的 `validMermaidThemes` 完全一致。
+ * `vscode` 是它自己的哨兵值：按 body 明暗与实时 CSS 变量推导配色；其余是 Mermaid 原生主题。
+ */
+const MERMAID_THEMES = ['vscode', 'default', 'forest', 'dark', 'neutral', 'base'];
+const DEFAULT_MERMAID_THEME = 'vscode';
+
+function isMermaidTheme(value) {
+	return MERMAID_THEMES.includes(value);
+}
+
+function normalizeMermaidTheme(value) {
+	return isMermaidTheme(value) ? value : DEFAULT_MERMAID_THEME;
+}
+
+const mermaidThemeSelect = document.getElementById('wispkit-mermaid-theme');
+/** 服务端写进 `<html data-wispkit-mermaid-theme>`；缺失时退回下拉框的初始值。 */
+let mermaidTheme = normalizeMermaidTheme(
+	document.documentElement?.dataset?.wispkitMermaidTheme ?? mermaidThemeSelect?.value,
+);
+
+/**
+ * 把当前主题写进内置扩展每次渲染时读取的 `#markdown-mermaid` 配置 span。
+ *
+ * HTML 渲染时宿主已经改过一次（`applyMermaidThemeToBodyHtml`）；这里管的是
+ * 运行期切换，以及正文整体替换后（宿主会重新渲染，span 也跟着换新的）。
+ * `dataset.config` 自动做 HTML 实体解码，所以不需要手写编解码。
+ */
+function applyMermaidThemeToConfigSpan() {
+	const span = document.getElementById('markdown-mermaid');
+	if (!span) {
+		return false;
+	}
+	let config = {};
+	try {
+		const parsed = JSON.parse(span.dataset.config || '{}');
+		if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+			config = parsed;
+		}
+	} catch {
+		// 配置坏了就只用最小集合（主题两字段），其余交给内置扩展默认值
+	}
+	config.lightModeTheme = mermaidTheme;
+	config.darkModeTheme = mermaidTheme;
+	span.dataset.config = JSON.stringify(config);
+	return true;
+}
+
+/** 离容器最近的、最外层的 `.mermaid-wrapper`（内置扩展每次重渲染都会再套一层）。 */
+function outermostMermaidWrapper(container) {
+	let outermost = null;
+	for (let element = container.parentElement; element && element !== zoomLayer; element = element.parentElement) {
+		if (element.classList?.contains('mermaid-wrapper')) {
+			outermost = element;
+		}
+	}
+	return outermost;
+}
+
+/**
+ * 还原一个 `.mermaid` 容器里的 **Mermaid 源码**。
+ *
+ * 内置扩展渲染时会先把源码写进 `data-vscode-context.mermaidSource`（解析成 JSON），
+ * 再清空容器、塞入 SVG —— 这是唯一可靠的源码副本。刚还原过、还没被重新渲染的容器
+ * 没有 svg 子节点，此时 `textContent` 本身就是源码。
+ */
+function mermaidSourceOf(container) {
+	try {
+		const context = JSON.parse(container.dataset?.vscodeContext || '{}');
+		if (typeof context.mermaidSource === 'string' && context.mermaidSource.trim()) {
+			// 内置脚本已接管：哪怕还在 parse/render 途中（container 可能已被清空），
+			// 这也是可信源码，必须还原 —— 否则紧接着的 init 会读到空字符串。
+			return { source: context.mermaidSource.trim(), fromRender: true };
+		}
+	} catch {
+		// 非法 JSON：继续走 textContent 兜底
+	}
+	if (!container.querySelector('svg')) {
+		const text = container.textContent ?? '';
+		return { source: text.trim() ? text.trim() : '', fromRender: false };
+	}
+	return { source: '', fromRender: false };
+}
+
+/**
+ * 让所有已渲染的 Mermaid 图恢复成「源码 + 干净的 `.mermaid` 容器」。
+ *
+ * 这是修复「切主题后图变空白」的关键：内置预览脚本的 `init()` 会先删掉
+ * `.mermaid > svg`，再读 `textContent` 当源码；如果容器里只剩 SVG，删完就是空字符串，
+ * 图就永远不会再画出来。还原时把整条 `.mermaid-wrapper`（含缩放控件 / 拖拽手柄）
+ * 一并换掉，也避免反复切主题时 wrapper 层层嵌套。
+ *
+ * @returns {number} 还原的容器数量（0 表示这条路径没有可还原的图）
+ */
+function restoreMermaidSources() {
+	if (!zoomLayer?.querySelectorAll) {
+		return 0;
+	}
+	let restored = 0;
+	for (const container of [...zoomLayer.querySelectorAll('.mermaid')]) {
+		const wrapper = outermostMermaidWrapper(container);
+		const { source, fromRender } = mermaidSourceOf(container);
+		// 内置脚本接管过（data 里有源码）就必须还原，哪怕它正在解析、容器暂时是空的；
+		// 没接管过的纯源码容器（没有 svg、没有 wrapper）保持原样，不碰它的 id / 属性。
+		const rendered = fromRender || Boolean(container.querySelector('svg')) || Boolean(wrapper);
+		if (!rendered || !source) {
+			continue;
+		}
+		const fresh = zoomLayer.ownerDocument.createElement('div');
+		fresh.className = 'mermaid';
+		fresh.textContent = source;
+		(wrapper ?? container).replaceWith(fresh);
+		restored += 1;
+	}
+	return restored;
+}
+
+/**
+ * 按当前 Mermaid 主题重画全部图表：写配置 → 还原源码 → 通知预览脚本。
+ * 返回值只用于自检 / e2e 断言。
+ */
+function refreshMermaidDiagrams() {
+	const configUpdated = applyMermaidThemeToConfigSpan();
+	const restored = restoreMermaidSources();
+	notifyPreviewScripts();
+	return { configUpdated, restored };
+}
+
+function syncMermaidThemeControl() {
+	if (mermaidThemeSelect && mermaidThemeSelect.value !== mermaidTheme) {
+		mermaidThemeSelect.value = mermaidTheme;
+	}
+}
+
+/**
+ * 切换 Mermaid 图表主题。
+ * - `persist: false`：宿主广播回来的消息，不能再发一次；
+ * - `notify: false`：首屏初始化，页面 HTML 已经按目标主题生成，不必重画。
+ */
+function applyMermaidTheme(value, { notify = true, persist = true } = {}) {
+	const next = normalizeMermaidTheme(value);
+	const changed = next !== mermaidTheme;
+	mermaidTheme = next;
+	syncMermaidThemeControl();
+	if (document.documentElement) {
+		document.documentElement.dataset.wispkitMermaidTheme = next;
+	}
+	if (changed && notify) {
+		refreshMermaidDiagrams();
+	}
+	if (persist) {
+		hostApi?.postMessage({ type: 'wispkit.setMermaidTheme', theme: next });
+	}
+	return next;
+}
 
 const toc = createTableOfContents({
 	content,
@@ -90,6 +425,8 @@ const toc = createTableOfContents({
 	depth: config.tocDepth,
 	enabled: config.tocEnabled,
 	storage,
+	resizeTarget: zoomLayer,
+	virtualized: () => zoomLayer.classList.contains('wispkit-virtualized'),
 });
 
 const lightbox = createLightbox({
@@ -103,8 +440,182 @@ const lightbox = createLightbox({
 	wheelZoom: () => true,
 });
 
+/* ---------------------------------------------------------------- 正文多级缩放 */
+
+const zoomOutButton = document.getElementById('wispkit-zoom-out');
+const zoomInButton = document.getElementById('wispkit-zoom-in');
+const zoomValueButton = document.getElementById('wispkit-zoom-reset');
+
+/**
+ * 档位固定 50%–300%；`storage` 里记的是倍率（"1.5"），下次打开同一文档沿用。
+ * 缩放后目录的标题位置全部变了，缓存必须作废（toc.invalidatePositions）。
+ */
+const pageZoom = createPageZoom({
+	target: zoomLayer,
+	initial: storage.get('wispkit.zoom'),
+	storage,
+	onChange: ({ percent, atMin, atMax }) => {
+		if (zoomValueButton) {
+			zoomValueButton.textContent = `${percent}%`;
+			zoomValueButton.setAttribute('aria-label', `当前缩放 ${percent}%，点击重置为 100%`);
+		}
+		if (zoomOutButton) {
+			zoomOutButton.disabled = atMin;
+		}
+		if (zoomInButton) {
+			zoomInButton.disabled = atMax;
+		}
+		toc.invalidatePositions?.();
+	},
+});
+
+zoomOutButton?.addEventListener('click', () => pageZoom.zoomOut({ persist: true }));
+zoomInButton?.addEventListener('click', () => pageZoom.zoomIn({ persist: true }));
+zoomValueButton?.addEventListener('click', () => pageZoom.reset({ persist: true }));
+
+document.addEventListener('keydown', event => {
+	if (!(event.ctrlKey || event.metaKey) || event.altKey) {
+		return;
+	}
+	const key = event.key;
+	if (key === '=' || key === '+') {
+		event.preventDefault();
+		pageZoom.zoomIn({ persist: true });
+	} else if (key === '-' || key === '_') {
+		event.preventDefault();
+		pageZoom.zoomOut({ persist: true });
+	} else if (key === '0') {
+		event.preventDefault();
+		pageZoom.reset({ persist: true });
+	}
+});
+
+// Ctrl+滚轮：与 VS Code 图片视图的习惯一致。这里拦掉浏览器自己的页面缩放
+// （preventDefault），只按档位放大/缩小。
+content.addEventListener('wheel', event => {
+	if (!event.ctrlKey) {
+		return;
+	}
+	event.preventDefault();
+	if (event.deltaY < 0) {
+		pageZoom.zoomIn({ persist: true });
+	} else if (event.deltaY > 0) {
+		pageZoom.zoomOut({ persist: true });
+	}
+}, { passive: false });
+
+/**
+ * 大文档虚拟化：正文元素足够多时给正文层挂 `wispkit-virtualized`，
+ * CSS 用 `content-visibility: auto` 跳过视口外块的排版与绘制。
+ *
+ * 这是「400 KB + 多图多表，点目录卡顿」的主治：点击目录会跳到很远的位置，
+ * 不虚拟化时浏览器要为整篇文档布局/栅格化所有表格与 mermaid SVG。
+ * 阈值取「正文文字 18 万字」或「元素 4000 个」或「表格 / 代码 / 图 40 个」任一，
+ * 普通文档不会进虚拟化，避免 `contain-intrinsic-size` 的估算误差影响滚动条。
+ */
+const VIRTUALIZE_MIN_CHARS = 180000;
+const VIRTUALIZE_MIN_ELEMENTS = 4000;
+const VIRTUALIZE_MIN_HEAVY = 40;
+const VIRTUALIZE_KEEP_CLASS = 'wispkit-virtualize-keep';
+const DIAGRAM_SELECTOR = 'svg, .mermaid, .mermaid-wrapper, .drawio, .mxgraph';
+
+/** 这个顶层块是不是（或含有）图？图块必须保持真实布局，见 markdown.css 里的说明。 */
+function isDiagramBlock(element) {
+	return element.matches?.(DIAGRAM_SELECTOR) || Boolean(element.querySelector?.(DIAGRAM_SELECTOR));
+}
+
+/** 给所有图块顶层子节点打上「不虚拟化」标记；幂等，已标记的跳过。 */
+function markVirtualizeKeep() {
+	if (!zoomLayer || zoomLayer === content) {
+		return;
+	}
+	for (const child of zoomLayer.children) {
+		if (child.classList.contains(VIRTUALIZE_KEEP_CLASS)) {
+			continue;
+		}
+		if (isDiagramBlock(child)) {
+			child.classList.add(VIRTUALIZE_KEEP_CLASS);
+		}
+	}
+}
+
+function closestLayerChild(node) {
+	let element = node?.nodeType === 1 ? node : node?.parentElement ?? null;
+	while (element && element.parentElement !== zoomLayer) {
+		element = element.parentElement;
+	}
+	return element?.parentElement === zoomLayer ? element : null;
+}
+
+/**
+ * 图块是**异步**出现的：mermaid 脚本可能把原来的顶层块包进新的 `.mermaid-wrapper`。
+ * 观察器在 DOM 变动的微任务里同步补标记 —— 它早于 mermaid 自己排的
+ * `requestAnimationFrame(initialize)`，所以那一次 SVG 测量看到的是真实布局。
+ */
+const MutationObserverCtor = zoomLayer.ownerDocument?.defaultView?.MutationObserver ?? null;
+const virtualizeKeepObserver = typeof MutationObserverCtor === 'function' && zoomLayer !== content
+	? new MutationObserverCtor(records => {
+		if (!zoomLayer.classList.contains('wispkit-virtualized')) {
+			return;
+		}
+		for (const record of records) {
+			for (const node of record.addedNodes) {
+				const child = node?.parentElement === zoomLayer ? node : closestLayerChild(record.target);
+				if (child?.nodeType === 1 && !child.classList.contains(VIRTUALIZE_KEEP_CLASS) && isDiagramBlock(child)) {
+					child.classList.add(VIRTUALIZE_KEEP_CLASS);
+				}
+			}
+		}
+	})
+	: null;
+virtualizeKeepObserver?.observe(zoomLayer, { childList: true, subtree: true });
+
+function updateVirtualization() {
+	if (!zoomLayer || zoomLayer === content) {
+		return false;
+	}
+	markVirtualizeKeep();
+	const heavy = zoomLayer.querySelectorAll('table, pre, .mermaid, .drawio, .mxgraph').length;
+	const elementCount = zoomLayer.getElementsByTagName('*').length;
+	let virtual = heavy >= VIRTUALIZE_MIN_HEAVY || elementCount >= VIRTUALIZE_MIN_ELEMENTS;
+	if (!virtual && elementCount >= 1000) {
+		// 纯文字长文（表格/图不多）也要照顾；`textContent` 只在这种边缘场景跑一次。
+		virtual = (zoomLayer.textContent?.length ?? 0) >= VIRTUALIZE_MIN_CHARS;
+	}
+	zoomLayer.classList.toggle('wispkit-virtualized', virtual);
+	// 块的估算尺寸换了，目录的标题位置缓存随之作废。
+	toc.invalidatePositions?.();
+	return virtual;
+}
+
+/* ---------------------------------------------------------------- 正文查找 */
+
+const find = createFinder({
+	content,
+	root: zoomLayer,
+	bar: document.getElementById('wispkit-find'),
+	input: document.getElementById('wispkit-find-input'),
+	count: document.getElementById('wispkit-find-count'),
+	prevButton: document.getElementById('wispkit-find-prev'),
+	nextButton: document.getElementById('wispkit-find-next'),
+	caseButton: document.getElementById('wispkit-find-case'),
+	closeButton: document.getElementById('wispkit-find-close'),
+	onOpenChange: open => {
+		const toggle = document.getElementById('wispkit-find-toggle');
+		toggle?.setAttribute('aria-pressed', open ? 'true' : 'false');
+		toggle?.classList.toggle('wispkit-active', open);
+		// 开/关查找会启用/停用正文虚拟化，块高度整体换一套 —— 目录位置缓存作废。
+		toc.invalidatePositions?.();
+	},
+});
+document.getElementById('wispkit-find-toggle')?.addEventListener('click', () => find.openFromShortcut());
+
 function refresh() {
-	notifyPreviewScripts();
+	updateVirtualization();
+	// 正文（连同内置扩展重新生成的配置 span）可能刚被整体换掉：先按当前主题改配置，
+	// 再让预览脚本扫描渲染。首屏也走这里 —— 如果 async 模块脚本恰好抢在前面已经画过，
+	// refreshMermaidDiagrams 会先把源码还原回来，不会让第二次 init 读到空容器。
+	refreshMermaidDiagrams();
 	toc.rebuild();
 }
 
@@ -119,10 +630,12 @@ function applyBodyHtml(bodyHtml) {
 	// 重建会移除全部旧节点，产生成百上千条 mutation。先停掉接力观察，免得把「重建」
 	// 误判成「第三方替换」而把旧块的行号错配给新容器 —— 重建之后 pending 必须是空的。
 	sourceRelay.stop();
-	content.innerHTML = bodyHtml;
+	zoomLayer.innerHTML = bodyHtml;
 	content.scrollTop = scrollTop;
 	sourceRelay.start();
 	refresh();
+	// 正文换了，查找栏若开着要按同一查询在新 DOM 上重跑（mermaid 在另一个块里，不参与搜索）。
+	find.contentReplaced();
 }
 
 /** 按钮上的文字节点：图标在标记里，脚本只改这个 span，不会把图标抹掉。 */
@@ -207,8 +720,20 @@ function setDirty(dirty, text) {
 	paragraphState.dirty = dirty;
 }
 
-function blockItems() {
+function rawBlockItems() {
 	return mapBlocksToSpans(content.querySelectorAll('[data-line]'), countLines(paragraphState.source));
+}
+
+/**
+ * 映射表。取之前先把「渲染容器还没接住源映射」的补上 ——
+ * mermaid / drawio 是**异步**替换的，容器可能晚于 `applyBodyHtml` 一拍才出现，
+ * 首屏时 `source` 也可能还没到。与其赌某个时机，不如谁要用谁先补齐（幂等）。
+ */
+function blockItems() {
+	if (sourceRelay.hasUnmapped()) {
+		sourceRelay.reconcile(rawBlockItems());
+	}
+	return rawBlockItems();
 }
 
 /** 按内容一次算准编辑框高度（`max-height` 由 CSS 兜底，超长时内部滚动）。 */
@@ -346,6 +871,53 @@ const sourceRelay = {
 		container.classList?.add('code-line');
 		return true;
 	},
+
+	/**
+	 * 补漏：**首屏浏览时 `source` 还没到**（以前只在进编辑模式时才请求），
+	 * `pickPendingSourceLine` 的自校验拿不到源码只能返回 -1，接力整条放弃 ——
+	 * 于是 mermaid 容器永远缺 `data-line`，而**前一个段落会把整段围栏算进自己的区间**
+	 * （实测：点标题开出的编辑框装下了 88 行、2065px 高的整张图）。
+	 *
+	 * 所以 source 到手后、以及每次取映射表前都扫一遍：用前后邻居夹区间，并且
+	 * **只在区间里恰好一段围栏**时才写，仍然是「宁可不动也不猜错」。
+	 */
+	reconcile(items) {
+		if (!content || typeof paragraphState.source !== 'string') {
+			return 0;
+		}
+		const targets = Array.from(content.querySelectorAll(RENDERED_CONTAINER_SELECTOR))
+			.filter(node => isRelayContainer(node));
+		if (!targets.length) {
+			return 0;
+		}
+		// 一次算完再统一写：边算边写会让后面容器的邻居区间被刚补的块切窄，结果不稳定
+		const list = items ?? rawBlockItems();
+		const resolved = [];
+		for (const node of targets) {
+			const bounds = neighborBounds(list, node);
+			if (!bounds) {
+				continue;
+			}
+			const fence = fenceSpanInRange(paragraphState.source, bounds.from, bounds.to);
+			if (fence) {
+				resolved.push({ node, line: fence.startLine });
+			}
+		}
+		for (const { node, line } of resolved) {
+			node.setAttribute('data-line', String(line));
+			node.classList?.add('code-line');
+		}
+		return resolved.length;
+	},
+
+	/** 有没有「渲染容器还没接住源映射」。补漏的前置判断，也是它的幂等开关。 */
+	hasUnmapped() {
+		if (!content) {
+			return false;
+		}
+		return Array.from(content.querySelectorAll(RENDERED_CONTAINER_SELECTOR))
+			.some(node => isRelayContainer(node));
+	},
 };
 
 /**
@@ -443,7 +1015,6 @@ const paragraph = {
 		const textarea = document.createElement('textarea');
 		textarea.className = 'wispkit-paragraph-input';
 		textarea.spellcheck = false;
-		textarea.wrap = 'off';
 		textarea.value = text;
 		textarea.setAttribute('aria-label', '这一段 Markdown 的原文');
 		textarea.title = '回车 = 空一行（分出新段落）；Shift+回车 = 段内换行（Markdown 软换行）';
@@ -570,7 +1141,11 @@ function isElement(node) {
 	return Boolean(node) && typeof node === 'object' && node.nodeType === 1;
 }
 
-/** 编辑模式下的点击：交给段落编辑，不触发图片放大等浏览行为。 */
+/**
+ * 编辑模式下的点击：默认「点哪一段改哪一段」。
+ * 但已渲染的图（mermaid / drawio / 图片）反过来 —— 改源码时正需要放大核对图对不对，
+ * 所以它们优先交给放大模态框；想改那段围栏源码，点图外的正文即可。
+ */
 function handleEditClick(event) {
 	const target = event.target;
 	if (!isElement(target) || !content.contains(target)) {
@@ -579,6 +1154,20 @@ function handleEditClick(event) {
 		return;
 	}
 	if (target.classList.contains('wispkit-paragraph-input')) {
+		return;
+	}
+	const svg = target.closest('svg');
+	if (svg && content.contains(svg)) {
+		event.preventDefault();
+		paragraph.commit();
+		lightbox.openSvg(svg);
+		return;
+	}
+	const image = target.closest('img');
+	if (image) {
+		event.preventDefault();
+		paragraph.commit();
+		lightbox.openImage(image);
 		return;
 	}
 	if (paragraph.openAt(target)) {
@@ -634,6 +1223,17 @@ function onClickContent(event) {
 }
 
 content.addEventListener('click', onClickContent);
+
+/**
+ * 链接点击：把原始 href 送回宿主解析（相对路径 → 文档所在目录）。
+ * 编辑模式下不拦 —— 点正文任何位置都应该是"改这一段"，包括链接。
+ */
+if (hostApi) {
+	installLinkRouter({
+		canHandle: () => !paragraphState.mode,
+		onOpenLink: href => hostApi.postMessage({ type: 'wispkit.openLink', href }),
+	});
+}
 
 content.addEventListener('keydown', event => {
 	if (!paragraphState.open) {
@@ -773,8 +1373,19 @@ saveButton?.addEventListener('click', () => {
 	save();
 });
 
+// 主题三态：点哪一段选哪一段；真正的「全局持久化」在宿主（见 markdownProvider）
+for (const button of document.querySelectorAll('.wispkit-theme-option')) {
+	button.addEventListener('click', () => applyThemeMode(button.dataset.themeMode));
+}
+// Mermaid 图表主题：改一次就重画全部图；宿主负责落盘并广播给其它 Markdown 标签页
+mermaidThemeSelect?.addEventListener('change', () => applyMermaidTheme(mermaidThemeSelect.value));
+
 // 位置以记住的为准（初始 HTML 已经按默认的「右侧」渲染，避免首屏闪一下再跳）
 applyTocSide();
+// 主题同理：HTML 里已经写好初始 class，这里只补按钮选中态与 body 明暗类别
+applyThemeMode(themeMode, { notify: false, persist: false });
+applyMermaidTheme(mermaidTheme, { notify: false, persist: false });
+themeKindObserver.start();
 
 window.addEventListener('message', event => {
 	const message = event.data;
@@ -792,10 +1403,23 @@ window.addEventListener('message', event => {
 		}
 	} else if (message.type === 'wispkit.config') {
 		toc.setConfig(message.config ?? {});
+	} else if (message.type === 'wispkit.theme') {
+		// 宿主广播：别的 Markdown 标签页切了主题，当前视图跟着变；不要回发。
+		// 非法值直接忽略 —— 不能 normalize 成 auto，那等于「悄悄切回跟随主题」。
+		if (isThemeMode(message.mode)) {
+			applyThemeMode(message.mode, { persist: false });
+		}
+	} else if (message.type === 'wispkit.mermaidTheme') {
+		// 宿主广播：Mermaid 图表主题同步到所有 Markdown 视图。
+		if (isMermaidTheme(message.theme)) {
+			applyMermaidTheme(message.theme, { persist: false });
+		}
 	} else if (message.type === 'wispkit.source') {
 		paragraphState.source = typeof message.text === 'string' ? message.text : '';
 		paragraphState.loaded = true;
 		setDirty(false);
+		// 源码到手：把首屏被第三方脚本替换掉、当时还没法校验行号的块补上（可能空操作）
+		sourceRelay.reconcile();
 	} else if (message.type === 'wispkit.saveResult') {
 		if (message.requestId === paragraphState.saveRequestId) {
 			setDirty(!message.ok, message.ok ? undefined : `保存失败：${message.error ?? '未知原因'}`);
@@ -807,6 +1431,15 @@ window.addEventListener('message', event => {
 // 等 DOM 就绪再派发，避免第三方脚本在内容解析完之前抓空。
 // 接力观察必须在 refresh **之前**就位：第三方脚本正是在 refresh 派发事件之后替换正文的。
 sourceRelay.start();
+// 首屏就把源码要过来：第三方脚本替换块时，源映射接力要用它校验行号；
+// 只在进编辑模式时才请求的话，首屏的 mermaid 容器永远接不住 `data-line`
+// （那个空洞会让**前一段**把整段围栏算进自己的区间，编辑框装下整张图）。
+if (!paragraphState.loaded) {
+	hostApi?.postMessage({ type: 'wispkit.requestSource' });
+}
+// 先在同步阶段判一次大文档：正文此时已经解析完（脚本在 body 末尾），
+// 尽早挂上虚拟化类，首屏就不必排版视口外的表格 / 图。
+updateVirtualization();
 if (document.readyState === 'loading') {
 	document.addEventListener('DOMContentLoaded', refresh, { once: true });
 } else {
@@ -830,6 +1463,65 @@ Object.defineProperty(window, '__wispkitSelftest', {
 		tocSide: () => tocSide,
 		toggleTocSide,
 		navWidth: () => toc.navWidth,
+
+		// —— 正文多级缩放 ——
+		zoomPercent: () => pageZoom.percent,
+		zoomLevel: () => pageZoom.level,
+		setZoom: value => pageZoom.set(value, { persist: true }),
+		zoomIn: () => pageZoom.zoomIn({ persist: true }),
+		zoomOut: () => pageZoom.zoomOut({ persist: true }),
+		resetZoom: () => pageZoom.reset({ persist: true }),
+		zoomLayerStyle: () => zoomLayer.getAttribute('style') ?? '',
+		/** 大文档虚拟化是否生效（content-visibility: auto）。 */
+		virtualized: () => zoomLayer.classList.contains('wispkit-virtualized'),
+
+		// —— 正文查找 ——
+		openFind: prefill => find.open(prefill),
+		openFindFromShortcut: () => find.openFromShortcut(),
+		closeFind: () => find.close(),
+		findOpen: () => find.isOpen,
+		findQuery: () => find.query,
+		setFindQuery: text => find.setQuery(text),
+		findMatchCount: () => find.matchCount,
+		findActiveIndex: () => find.activeIndex,
+		findTruncated: () => find.truncated,
+		findNext: () => find.next(),
+		findPrev: () => find.prev(),
+		findCaseSensitive: () => find.caseSensitive,
+		setFindCaseSensitive: value => find.setCaseSensitive(value),
+		findMarkedCount: () => find.markedCount,
+		findUsesHighlightApi: () => find.usesHighlightApi,
+
+		// —— 主题三态 ——
+		themeMode: () => themeMode,
+		setThemeMode: mode => applyThemeMode(mode),
+		themeChecked: () => document.querySelector('.wispkit-theme-option[aria-pressed="true"]')?.dataset?.themeMode ?? null,
+		themeOptionCount: () => document.querySelectorAll('.wispkit-theme-option').length,
+		hostThemeKind: () => readHostThemeKind(),
+
+		// —— Mermaid 图表主题 ——
+		mermaidTheme: () => mermaidTheme,
+		setMermaidTheme: value => applyMermaidTheme(value),
+		mermaidThemeCount: () => mermaidThemeSelect?.options?.length ?? 0,
+		mermaidThemeValue: () => mermaidThemeSelect?.value ?? null,
+		/** 配置 span 里当前写入的明暗主题（没有内置 Mermaid 扩展时为 null）。 */
+		mermaidConfigThemes: () => {
+			const span = document.getElementById('markdown-mermaid');
+			if (!span) {
+				return null;
+			}
+			try {
+				const config = JSON.parse(span.dataset.config || '{}');
+				return { light: config.lightModeTheme ?? null, dark: config.darkModeTheme ?? null };
+			} catch {
+				return { error: 'invalid data-config' };
+			}
+		},
+		mermaidContainerCount: () => zoomLayer.querySelectorAll('.mermaid').length,
+		mermaidRenderedCount: () => zoomLayer.querySelectorAll('.mermaid svg').length,
+		mermaidWrapperCount: () => zoomLayer.querySelectorAll('.mermaid-wrapper').length,
+		/** 主动走一遍「还原源码 → 重画」通路；e2e 可用于模拟主题切换。 */
+		refreshMermaidDiagrams,
 		openContextMenu: selector => {
 			const element = content.querySelector(selector);
 			if (!element) {

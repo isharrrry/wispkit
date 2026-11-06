@@ -48,3 +48,58 @@ body {
 	color: var(--vscode-editorWidget-foreground, inherit);
 	pointer-events: none;
 }
+
+.wispkit-image-error {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24px;
+	background: var(--vscode-editor-background);
+}
+
+/* 作者样式会盖过 hidden 属性的 UA 样式，必须显式关掉 */
+.wispkit-image-error[hidden] {
+	display: none;
+}
+
+.wispkit-image-error-card {
+	max-width: 480px;
+	text-align: center;
+}
+
+.wispkit-image-error-title {
+	margin: 0 0 8px;
+	font-size: 15px;
+	font-weight: 600;
+}
+
+.wispkit-image-error-detail {
+	margin: 0;
+	line-height: 1.6;
+	opacity: 0.8;
+}
+
+.wispkit-image-error-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: center;
+	margin-top: 16px;
+}
+
+.wispkit-image-error-actions button {
+	padding: 4px 12px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 2px;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font-family: var(--vscode-font-family);
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.wispkit-image-error-actions button:hover {
+	background: var(--vscode-button-hoverBackground);
+}
