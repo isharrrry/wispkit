@@ -1,0 +1,121 @@
+html,
+body {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	background: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+	font-family: var(--vscode-font-family);
+}
+
+body.wispkit-video {
+	display: flex;
+	flex-direction: column;
+}
+
+.wispkit-video-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 0 0 auto;
+	padding: 4px 10px;
+	border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.25));
+	background: var(--vscode-editorWidget-background, transparent);
+}
+
+.wispkit-video-title {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 12px;
+	opacity: 0.9;
+}
+
+.wispkit-video-toolbar button {
+	flex: 0 0 auto;
+	padding: 3px 10px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 2px;
+	background: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
+	color: var(--vscode-button-secondaryForeground, var(--vscode-button-foreground));
+	font-family: var(--vscode-font-family);
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.wispkit-video-toolbar button:hover {
+	background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-hoverBackground));
+}
+
+.wispkit-video-stage {
+	position: relative;
+	flex: 1 1 auto;
+	min-height: 0;
+	background: #000;
+}
+
+.wispkit-video-stage video {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+	background: #000;
+	outline: none;
+}
+
+.wispkit-video-error {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24px;
+	background: var(--vscode-editor-background);
+}
+
+/* 作者样式会盖过 hidden 属性的 UA 样式，必须显式关掉 */
+.wispkit-video-error[hidden] {
+	display: none;
+}
+
+.wispkit-video-error-card {
+	max-width: 560px;
+	text-align: center;
+}
+
+.wispkit-video-error-title {
+	margin: 0 0 8px;
+	font-size: 15px;
+	font-weight: 600;
+}
+
+.wispkit-video-error-detail,
+.wispkit-video-error-hint {
+	margin: 0;
+	line-height: 1.6;
+	opacity: 0.8;
+}
+
+.wispkit-video-error-hint {
+	margin-top: 8px;
+	font-size: 12px;
+	opacity: 0.6;
+}
+
+.wispkit-video-hint {
+	position: absolute;
+	right: 10px;
+	bottom: 8px;
+	z-index: 1;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	opacity: 0.75;
+	background: var(--vscode-editorWidget-background, rgba(0, 0, 0, 0.4));
+	color: var(--vscode-editorWidget-foreground, inherit);
+	pointer-events: none;
+}
