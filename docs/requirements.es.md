@@ -68,6 +68,7 @@ Tres hechos de numeración son estructurales y deben sobrevivir a cualquier edic
 | Navegación de texto de solo lectura con una ruta de desbloqueo | `R10` |
 | Organización de archivos: árbol de recursos personalizado en la barra de actividades, panel de subárbol del Explorador | `R9`, `R11` |
 | Localización de la propia superficie de la extensión | `R18` |
+| Páginas de propiedades de accesos directos y ejecutables de Windows | `R19` |
 
 ### Fuera del alcance
 
@@ -261,6 +262,8 @@ Tres hechos de numeración son estructurales y deben sobrevivir a cualquier edic
 - **AC-R11.7** — **CUANDO** un comando del anfitrión ofrecido en el área de acciones no está disponible, **ENTONCES** una advertencia nombra el comando ausente en lugar de fallar en silencio.
 - **AC-R11.8** — **CUANDO** se sueltan archivos desde el sistema operativo o se arrastran entre dos paneles de subárbol, **ENTONCES** las operaciones de archivo resultantes se realizan y se informa su resultado.
 - **AC-R11.9** — **CUANDO** un directorio contiene más entradas que el tope declarado, **ENTONCES** el exceso se trunca y el truncamiento se indica en el panel.
+- **AC-R11.10** — **CUANDO** se escribe un carácter imprimible con el panel enfocado, **ENTONCES** la selección pasa a la primera entrada visible cuyo nombre empieza por ese prefijo, pulsar el mismo carácter otra vez sigue bajando por la lista y vuelve al principio, y apagar el interruptor detiene el comportamiento por completo.
+- **AC-R11.11** — **CUANDO** una fila visible es un acceso directo o un ejecutable de Windows, **ENTONCES** la fila muestra el icono incrustado en el archivo cuando la plataforma lo ofrece y, si no, recurre al tema de iconos.
 
 **Evidencia.** [Vistas e interacción → Panel de subárbol](views-and-interaction.es.md#panel-de-subárbol-wispkitsubtree); material en `demo/R11-subtree/`; resultados de sondas en [Compilación y verificación](build-and-verify.es.md).
 
@@ -362,6 +365,28 @@ Tres hechos de numeración son estructurales y deben sobrevivir a cualquier edic
 
 **Evidencia.** [Configuración](configuration.es.md); el hueco de medición es el elemento no verificado 5 de [Limitaciones conocidas](limitations.es.md).
 
+### R19  Los accesos directos y los ejecutables de Windows tienen página de propiedades
+
+**Requisito.** La extensión DEBE ofrecer un editor personalizado para los accesos directos `.lnk` que muestre la ruta de destino, el directorio de trabajo, los argumentos de inicio, la ubicación del icono, la etiqueta de volumen, la máquina de creación y los indicadores; y un editor personalizado para los archivos `.exe` que muestre la estructura PE: el formato (`PE32` o `PE32+`), la arquitectura, el subsistema, si la imagen es una DLL, si porta un ensamblado .NET, la RVA del punto de entrada, la base de la imagen, la tabla de secciones y los recursos de versión. Ambos DEBEN registrarse como editores `option`, de modo que ninguno se apropie del manejador de apertura por defecto. Abrir cualquiera de los dos tipos DEBE seguir su comportamiento configurado: entregarlo al sistema, abrirlo dentro de Wispkit o preguntar antes. En Windows la página del acceso directo DEBE permitir editar la ruta de destino, el directorio de trabajo, los argumentos y el comentario, y guardar DEBE reescribir solo los campos que el usuario cambió. Un ejecutable iniciado desde Wispkit DEBE usar como directorio de trabajo el suyo propio; un acceso directo iniciado desde Wispkit NO DEBE ver sobrescrito el directorio de trabajo que tiene registrado.
+
+**Justificación.** Estos son los dos tipos de archivo que un lector más a menudo necesita *inspeccionar* y menos a menudo quiere *ejecutar*: pulsar un acceso directo con un icono engañoso no debería lanzar un programa, y averiguar si un ejecutable es de 32 o de 64 bits no debería exigir arrancarlo. Registrar ambos como editores `option` deja intacto el comportamiento de doble clic que el sistema ya tenía, mientras la página de propiedades queda a un *Reopen Editor With…* de distancia. La asimetría del directorio de trabajo es deliberada: un acceso directo registra su propio directorio de inicio, de modo que sustituirlo cambiaría en silencio lo que hace, mientras que un ejecutable no registra ninguno y el directorio que lo contiene es el único valor por defecto defendible.
+
+**Criterios de aceptación.**
+
+- **AC-R19.1** — **CUANDO** se abre un archivo `.lnk` en esta vista, **ENTONCES** se muestran su ruta de destino, directorio de trabajo, argumentos, ubicación del icono, etiqueta de volumen, máquina de creación e indicadores.
+- **AC-R19.2** — **CUANDO** se abre un archivo `.exe` en esta vista, **ENTONCES** se muestran el formato, la arquitectura, el subsistema, el indicador de DLL, el indicador de .NET, la RVA del punto de entrada, la base de la imagen, las secciones y los recursos de versión.
+- **AC-R19.3** — **CUANDO** se abre cualquiera de los dos tipos sin que el usuario elija una vista, **ENTONCES** se aplica el comportamiento del sistema, porque ambos editores están registrados como `option`.
+- **AC-R19.4** — **CUANDO** el comportamiento de apertura es abrir dentro de Wispkit, **ENTONCES** el destino de un acceso directo se abre en Wispkit y la página de propiedades de un ejecutable se abre; **CUANDO** es entregar al sistema, **ENTONCES** el sistema abre el archivo.
+- **AC-R19.5** — **CUANDO** el comportamiento de apertura es preguntar, **ENTONCES** se ofrece la elección antes de abrir nada.
+- **AC-R19.6** — **CUANDO** el destino de un acceso directo es una carpeta y el ajuste de carpeta es el interno, **ENTONCES** la carpeta se abre en el panel de subárbol; **CUANDO** el ajuste es el del sistema, **ENTONCES** la abre el gestor de archivos del sistema.
+- **AC-R19.7** — **CUANDO** se edita y guarda un campo de un acceso directo, **ENTONCES** solo se reescriben los campos editados y el resto del acceso directo, incluidos su icono y su tecla de acceso rápido, se conserva.
+- **AC-R19.8** — **CUANDO** la edición de accesos directos está desactivada por configuración, **ENTONCES** la página no muestra formulario de edición y sigue siendo legible.
+- **AC-R19.9** — **CUANDO** se inicia un ejecutable desde Wispkit, **ENTONCES** su directorio de trabajo es el directorio que contiene el ejecutable.
+- **AC-R19.10** — **CUANDO** se inicia un acceso directo desde Wispkit, **ENTONCES** se usa sin cambios el directorio de trabajo registrado dentro del acceso directo.
+- **AC-R19.11** — **CUANDO** se pide a cualquiera de las dos páginas analizar un archivo por encima del límite de tamaño declarado, **ENTONCES** declara el motivo en lugar de mostrar una página vacía.
+
+**Evidencia.** [Vistas e interacción → Vista de acceso directo](views-and-interaction.es.md#vista-de-acceso-directo-wispkitshelllink) y [Vista de ejecutable](views-and-interaction.es.md#vista-de-ejecutable-wispkitexecutable); los cuatro ajustes están en [Configuración → Accesos directos y ejecutables de Windows](configuration.es.md#accesos-directos-y-ejecutables-de-windows); casos unitarios en `src/test/shellLink*.test.ts` y `src/test/peParse.test.ts`. Todavía no existe un conjunto de fixtures `demo/R19-*/`, así que este requisito se juzga por ahora solo con casos unitarios e inspección del manifiesto.
+
 ## 4. Restricciones transversales
 
 Se aplican a todos los requisitos anteriores y no se repiten bajo cada uno.
@@ -432,8 +457,9 @@ Se aplican a todos los requisitos anteriores y no se repiten bajo cada uno.
 | Búsqueda dentro del documento | `R16` | sonda CDP | [tabla de mediciones del README](../README.es.md#comportamiento-medido) |
 | Zoom del cuerpo | `R17` | sonda CDP | [tabla de mediciones del README](../README.es.md#comportamiento-medido) |
 | Localización | `R18` | inspección del manifiesto | [Configuración](configuration.es.md); elemento no verificado 5 de [Limitaciones conocidas](limitations.es.md) |
+| Páginas de propiedades de accesos directos y ejecutables | `R19` | casos unitarios + inspección del manifiesto | [Vistas e interacción → Vista de acceso directo](views-and-interaction.es.md#vista-de-acceso-directo-wispkitshelllink) y [Vista de ejecutable](views-and-interaction.es.md#vista-de-ejecutable-wispkitexecutable); ajustes en [Configuración → Accesos directos y ejecutables de Windows](configuration.es.md#accesos-directos-y-ejecutables-de-windows); `src/test/shellLink*.test.ts`, `src/test/peParse.test.ts` |
 
-**Números medidos directamente al escribir este documento:** 62 archivos de prueba / **1059** casos en verde (`npm test`), 8 bundles de webview, un bundle 3D de unos 603 KB, 14 ajustes, 7 editores personalizados, 2 vistas contribuidas, 61 patrones glob de solo lectura por defecto, **170** entradas de contenido empaquetadas (`vsce ls`; `wispkit-0.2.12.vsix` contiene 172 entradas de archivo, unos 1,71 MB).
+**Números medidos directamente al escribir este documento:** 70 archivos de prueba / **1149** casos en verde (`npm test`), 8 bundles de webview, un bundle 3D de unos 603 KB, 19 ajustes, 9 editores personalizados, 2 vistas contribuidas, 61 patrones glob de solo lectura por defecto, **173** entradas de contenido empaquetadas (`vsce ls`; `wispkit-0.2.15.vsix` contiene 175 entradas de archivo, unos 1,73 MB).
 
 **Los documentos que contienen estas cifras se alinearon en el mismo cambio que añadió este archivo.** [README](../README.es.md#compilación-y-entorno-medido), [Compilación y verificación](build-and-verify.es.md#estructura-de-las-pruebas), [Arquitectura](architecture.es.md#escala) y el [índice](index.es.md) ahora declaran los mismos totales. La línea base se registra aquí una vez para que el contrato de requisitos diga qué significa «medido»; los demás documentos no pueden discrepar de ella.
 
@@ -477,6 +503,12 @@ Cada fila de abajo tiene un elemento correspondiente en [Limitaciones conocidas]
 | Directorios muy grandes y rutas de red | No verificado | No se ejercitó tal entorno (no verificado 7, 14) | Un entorno con un recurso compartido grande |
 | Cobertura del puente de idiomas del tema de iconos | No verificado | La tabla extensión-a-lenguaje no se comparó elemento por elemento (no verificado 8) | Comparación exhaustiva |
 | Rendimiento 3D con grafos grandes y corrección visual de tipos de diagrama poco frecuentes | No verificado | Maquetaciones probadas por unidad; las muestras en máquina real eran pequeñas (no verificado 9, 10, 11) | Medición con grafos grandes |
+| El destino de carpeta de un acceso directo solo llega al panel de subárbol | Deliberado | El navegador de comparación no acepta un directorio inicial, así que el panel de subárbol es el único destino interno (limitación 28) | Un navegador de comparación que acepte un directorio inicial |
+| Los archivos `.dll` no tienen página de propiedades | Deliberado | Solo se registra `*.exe`; el analizador es válido para DLL pero ningún selector las reclama (limitación 29) | Registrar un selector `.dll` |
+| La edición de accesos directos es solo para Windows | Ligado a la plataforma | La vía de escritura es el objeto de acceso directo del anfitrión de scripts de Windows, que solo existe allí (limitación 30) | Un escritor de accesos directos multiplataforma |
+| Un acceso directo que solo guarda una IDList de destino no puede abrirse internamente | Limitación del anfitrión | No existe una ruta absoluta legible, así que el sistema es la única vía (limitación 31) | No aplicable |
+| Los documentos por encima del límite de 256 MB se rechazan | Deliberado | Analizar un archivo sin límite en el anfitrión de la extensión bloquearía la interfaz (limitación 32) | Un análisis en flujo con presupuesto declarado |
+| El análisis de accesos directos en macOS y Linux | Parcialmente admitido | El análisis a nivel de bytes funciona; la apertura del sistema y la edición no se aplican (limitación 33) | No aplicable |
 
 ### Inconsistencias de documentación encontradas al escribir este archivo
 
@@ -507,3 +539,4 @@ Estos son defectos del conjunto existente, listados para que no se normalicen en
 - **Los criterios de aceptación** se redactaron de nuevo como enunciados `CUANDO … ENTONCES …`. Cuando una capacidad entregada no tenía criterio previo, el comportamiento observable se tomó de [Vistas e interacción](views-and-interaction.es.md) y se reformuló sin detalle de implementación.
 - **Las filas diferidas** se conciliaron con los 27 elementos de limitaciones y las 16 filas no verificadas en el momento de escribir; las tres inconsistencias de documentación encontradas en esa conciliación se listan en el [§6](#inconsistencias-de-documentación-encontradas-al-escribir-este-archivo).
 - **Las discrepancias de números** registradas en el [§5](#5-mapa-de-verificación) se enuncian en lugar de corregirse, porque corregirlas corresponde a los documentos que poseen esos números.
+- **`R19` se asignó en este cambio** para las páginas de propiedades de accesos directos y ejecutables de Windows, que se habían entregado sin número de requisito. Reutiliza la forma de prioridad `option` de `R10` en lugar de reclamar el manejador de apertura por defecto, y su conjunto de fixtures sigue vacío, lo cual se registra en su línea de evidencia en vez de quedar implícito.

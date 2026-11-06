@@ -11,3 +11,8 @@ export function imageContentSecurityPolicy(cspSource: string, nonce: string): st
 export function videoContentSecurityPolicy(cspSource: string, nonce: string): string {
 	return `default-src 'none'; media-src ${cspSource}; img-src data: ${cspSource}; connect-src ${cspSource}; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';`;
 }
+
+/** `.lnk` / `.exe` 属性页：没有外部资源，样式与脚本都只认扩展自己的源与 nonce。 */
+export function binaryContentSecurityPolicy(cspSource: string, nonce: string): string {
+	return `default-src 'none'; img-src ${cspSource} data:; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';`;
+}

@@ -9,6 +9,30 @@ ID. Earlier builds were local only, so there is no released history to reconstru
 entries below describe what the extension contains, not what changed since an earlier
 public release.
 
+## [Unreleased]
+
+### Added
+
+- **Windows shortcut (`.lnk`) and executable (`.exe`) property pages** — two `option`-priority
+  custom editors that inspect a file instead of launching it. The shortcut page reports the
+  target, working directory, arguments, icon location, volume label, creation machine and flags,
+  and on Windows lets the target, working directory, arguments and comment be edited — only the
+  changed fields are written back, so the icon and hotkey survive. The executable page reports
+  the PE format, architecture, subsystem, DLL and .NET flags, entry-point RVA, image base,
+  sections and version resources.
+- **Four settings** for the two kinds: `wispkit.shellLink.openBehavior` (`system` / `internal` /
+  `ask`), `wispkit.shellLink.folderTarget` (`subtree` / `system`), `wispkit.shellLink.allowEdit`
+  and `wispkit.executable.openBehavior` (`system` / `viewer` / `ask`), plus six context-menu
+  commands on the Explorer row of the two file types.
+- Starting an executable from Wispkit pins the working directory to the executable's own
+  directory; starting a shortcut leaves the start-in directory recorded inside it untouched.
+- **Real file icons in the subtree list** — `.lnk` and `.exe` rows show the icon embedded in the
+  file itself (on Windows through the shell association Explorer uses, so a shortcut shows the
+  program it points at); other file kinds and other platforms keep falling back to the icon theme.
+- **Type-ahead in the subtree list** — typing a letter or a digit jumps to the first name starting
+  with it, pressing the same character again walks down and wraps around, and Chinese names match
+  the text the input method commits. The new `wispkit.subtree.typeAhead` setting turns it off.
+
 ## [0.2.15] - 2026-11-06
 
 ### Fixed

@@ -68,6 +68,7 @@ Three numbering facts are load-bearing and must survive any later edit:
 | Read-only text browsing with an unlock path | `R10` |
 | File organisation: custom resource tree in the Activity Bar, Explorer subtree panel | `R9`, `R11` |
 | Localisation of the extension's own surface | `R18` |
+| Windows shortcut and executable property pages | `R19` |
 
 ### Out of scope
 
@@ -261,6 +262,8 @@ Three numbering facts are load-bearing and must survive any later edit:
 - **AC-R11.7** — **WHEN** a host command offered in the action area is unavailable, **THEN** a warning names the missing command instead of failing silently.
 - **AC-R11.8** — **WHEN** files are dropped from the operating system or dragged between two subtree panels, **THEN** the resulting file operations are performed and their outcome is reported.
 - **AC-R11.9** — **WHEN** a directory contains more entries than the stated cap, **THEN** the excess is truncated and the truncation is stated in the panel.
+- **AC-R11.10** — **WHEN** a printable character is typed while the panel has focus, **THEN** the selection moves to the first visible entry whose name starts with the typed prefix, pressing the same character again continues down the list and wraps around, and turning the switch off stops the behaviour entirely.
+- **AC-R11.11** — **WHEN** a visible row is a Windows shortcut or executable, **THEN** the row shows the icon embedded in the file wherever the platform provides one, and falls back to the icon theme otherwise.
 
 **Evidence.** [Views and interaction → Subtree panel](views-and-interaction.md#subtree-panel-wispkitsubtree); fixtures in `demo/R11-subtree/`; probe results in [Build and verify](build-and-verify.md).
 
@@ -362,6 +365,28 @@ Three numbering facts are load-bearing and must survive any later edit:
 
 **Evidence.** [Configuration](configuration.md); the measurement gap is [Known limitations](limitations.md) unverified item 5.
 
+### R19  Windows shortcuts and executables get property pages instead of a blind launch
+
+**Requirement.** The extension SHALL provide a custom editor for `.lnk` shortcuts that reports the shortcut's target path, working directory, start-in arguments, icon location, volume label, creation machine and flags, and a custom editor for `.exe` files that reports the PE structure: the format (`PE32` or `PE32+`), architecture, subsystem, whether the image is a DLL, whether it carries a .NET assembly, the entry-point RVA, the image base, the section table and the version resources. Both SHALL be registered as `option` editors, so neither takes over the default open handler. Opening either kind of file SHALL follow its configured behaviour: hand it to the system, open it inside Wispkit, or ask first. On Windows the shortcut page SHALL permit editing the target path, working directory, arguments and comment, and a save SHALL write back only the fields the user changed. An executable started from Wispkit SHALL use its own directory as the working directory; a shortcut started from Wispkit SHALL NOT have its recorded working directory overridden.
+
+**Rationale.** These are the two file kinds a reader most often needs to *inspect* and least often wants to *run*: clicking a shortcut with a misleading icon should not launch a program, and finding out whether an executable is 32- or 64-bit should not require starting it. Registering both as `option` editors leaves the double-click behaviour the system already had intact while the property page stays one *Reopen Editor With…* away. The working-directory asymmetry is deliberate rather than an oversight: a shortcut records its own start-in directory, so substituting another one would quietly change what the shortcut does, whereas an executable records none and the directory it lives in is the only defensible default.
+
+**Acceptance criteria.**
+
+- **AC-R19.1** — **WHEN** a `.lnk` file is opened in this view, **THEN** its target path, working directory, arguments, icon location, volume label, creation machine and flags are shown.
+- **AC-R19.2** — **WHEN** a `.exe` file is opened in this view, **THEN** the format, architecture, subsystem, DLL flag, .NET flag, entry-point RVA, image base, sections and version resources are shown.
+- **AC-R19.3** — **WHEN** either file kind is opened without the user choosing a view, **THEN** the system's own behaviour applies, because both editors are registered as `option`.
+- **AC-R19.4** — **WHEN** the open behaviour is set to open inside Wispkit, **THEN** a shortcut's target opens in Wispkit and an executable's property page opens; **WHEN** it is set to hand off to the system, **THEN** the system opens the file.
+- **AC-R19.5** — **WHEN** the open behaviour is set to ask, **THEN** the choice is offered before anything is opened.
+- **AC-R19.6** — **WHEN** a shortcut's target is a folder and the folder setting is the internal one, **THEN** the folder opens in the subtree panel; **WHEN** the setting is the system one, **THEN** the system file manager opens it.
+- **AC-R19.7** — **WHEN** a shortcut field is edited and saved, **THEN** only the edited fields are written and the rest of the shortcut, including its icon and hotkey, is preserved.
+- **AC-R19.8** — **WHEN** shortcut editing is disabled by configuration, **THEN** the page shows no edit form and remains readable.
+- **AC-R19.9** — **WHEN** an executable is started from Wispkit, **THEN** its working directory is the directory that holds the executable.
+- **AC-R19.10** — **WHEN** a shortcut is started from Wispkit, **THEN** the working directory recorded inside the shortcut is used unchanged.
+- **AC-R19.11** — **WHEN** either page is asked to parse a file beyond the stated size cap, **THEN** it states the reason instead of showing an empty page.
+
+**Evidence.** [Views and interaction → Shell shortcut view](views-and-interaction.md#shell-shortcut-view-wispkitshelllink) and [Executable view](views-and-interaction.md#executable-view-wispkitexecutable); the four settings are in [Configuration → Windows shortcut and executable](configuration.md#windows-shortcut-and-executable); unit cases in `src/test/shellLink*.test.ts` and `src/test/peParse.test.ts`. No `demo/R19-*/` fixture set exists yet, so this requirement is currently judged by unit cases and manifest inspection only.
+
 ## 4. Cross-cutting constraints
 
 These apply to every requirement above and are not repeated under each one.
@@ -432,8 +457,9 @@ These apply to every requirement above and are not repeated under each one.
 | In-document find | `R16` | CDP probe | [README measurement table](../README.md#measured-behaviour) |
 | Body zoom | `R17` | CDP probe | [README measurement table](../README.md#measured-behaviour) |
 | Localisation | `R18` | manifest inspection | [Configuration](configuration.md); unverified item 5 in [Known limitations](limitations.md) |
+| Shortcut and executable property pages | `R19` | unit cases + manifest inspection | [Views and interaction → Shell shortcut view](views-and-interaction.md#shell-shortcut-view-wispkitshelllink) and [Executable view](views-and-interaction.md#executable-view-wispkitexecutable); settings in [Configuration → Windows shortcut and executable](configuration.md#windows-shortcut-and-executable); `src/test/shellLink*.test.ts`, `src/test/peParse.test.ts` |
 
-**Measured directly while writing this document:** 62 test files / **1059** passing cases (`npm test`), 8 web-view bundles, one 3D bundle of about 603 KB, 14 settings, 7 custom editors, 2 contributed views, 61 default read-only glob patterns, **170** packaged content entries (`vsce ls`; `wispkit-0.2.12.vsix` holds 172 archive entries at about 1.71 MB).
+**Measured directly while writing this document:** 70 test files / **1149** passing cases (`npm test`), 8 web-view bundles, one 3D bundle of about 603 KB, 19 settings, 9 custom editors, 2 contributed views, 61 default read-only glob patterns, **173** packaged content entries (`vsce ls`; `wispkit-0.2.15.vsix` holds 175 archive entries at about 1.73 MB).
 
 **The documents that carry these figures were brought to them in the same change that added this file.** [README](../README.md#build-and-measured-environment), [Build and verify](build-and-verify.md#test-layout), [Architecture](architecture.md#scale) and the [index](index.md) now state the same totals. The baseline is recorded here once so that the requirement contract says what "measured" means; the other documents are not allowed to disagree with it.
 
@@ -472,6 +498,12 @@ Every row below has a matching item in [Known limitations](limitations.md). Wher
 | HEIF / HEIC / TIFF / JXL and several video containers | Deliberate | A decoder costs megabytes; the fallback is explicit instead (limitations 27) | A runtime that ships the decoder |
 | Multi-language editing fonts and pixel-level appearance | Not verified | Several changes were verified by value rather than by comparing rendered pixels (unverified 1) | Side-by-side rendered comparison |
 | Paragraph boundary precision on nested structures | Not verified | The end line is inferred from block starts; nesting is the least precise case (unverified 2) | Real-machine check per nesting kind |
+| A shortcut's folder target lands only in the subtree panel | Deliberate | The compare browser does not accept an initial directory, so the subtree panel is the only internal landing (limitations 28) | A compare browser that accepts an initial directory |
+| `.dll` files have no property page | Deliberate | Only `*.exe` is registered; the parser is valid for DLLs but no selector claims them (limitations 29) | Registering a `.dll` selector |
+| Shortcut editing is Windows-only | Platform-bound | The writable route is the Windows scripting host's shortcut object, which exists only there (limitations 30) | A cross-platform shortcut writer |
+| A shortcut that stores only a target IDList cannot open internally | Host limitation | No readable absolute path exists, so the system is the only route (limitations 31) | Not applicable |
+| Documents above the 256 MB cap are refused | Deliberate | Parsing an unbounded file in the extension host would stall the UI (limitations 32) | A streaming parse with a stated budget |
+| Shortcut parsing on macOS and Linux | Partly supported | Byte-level parsing works; system open and editing do not apply (limitations 33) | Not applicable |
 | Whole workspace write path, contributed Explorer commands, localisation pickup | Not verified | Unit-tested, never clicked in the real product (unverified 3, 4, 5) | Real-machine exercise |
 | Timing of the read-only tab replacement on slow disks, large files and preview tabs | Not verified | The replacement path is exercised, but not under those conditions (unverified 6) | Enable preview tabs once, disable them once, and time both |
 | Very large directories and network paths | Not verified | No such environment was exercised (unverified 7, 14) | A large-share environment |
@@ -507,3 +539,4 @@ These are defects in the existing set, listed so that they are not silently norm
 - **Acceptance criteria** were written fresh as `WHEN … THEN …` statements. Where a delivered capability had no prior criterion, the observable behaviour was taken from [Views and interaction](views-and-interaction.md) and restated without implementation detail.
 - **Deferred rows** were reconciled against all 27 limitations items and the 16 unverified rows at the time of writing; three documentation inconsistencies found during that reconciliation are listed in [§6](#documentation-inconsistencies-found-while-writing-this-file).
 - **The number discrepancies** recorded in [§5](#5-verification-map) are stated rather than corrected, because correcting them belongs to the documents that own those numbers.
+- **`R19` was allocated in this change** for the Windows shortcut and executable property pages, which had been delivered without a requirement number. It reuses the existing `option`-priority shape of `R10` rather than claiming a default open handler, and its fixture set is still empty, which is recorded in its evidence line instead of being implied.

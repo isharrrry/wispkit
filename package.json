@@ -56,6 +56,9 @@
 		"onView:wispkit.storage",
 		"onCommand:wispkit.storage.refresh",
 		"onCustomEditor:wispkit.text",
+		"onCustomEditor:wispkit.shellLink",
+		"onCustomEditor:wispkit.executable",
+		"onCommand:wispkit.openDefault",
 		"onStartupFinished"
 	],
 	"contributes": {
@@ -165,6 +168,26 @@
 				"selector": [
 					{
 						"filenamePattern": "*"
+					}
+				],
+				"priority": "option"
+			},
+			{
+				"viewType": "wispkit.shellLink",
+				"displayName": "%customEditor.shellLink.displayName%",
+				"selector": [
+					{
+						"filenamePattern": "*.lnk"
+					}
+				],
+				"priority": "option"
+			},
+			{
+				"viewType": "wispkit.executable",
+				"displayName": "%customEditor.executable.displayName%",
+				"selector": [
+					{
+						"filenamePattern": "*.exe"
 					}
 				],
 				"priority": "option"
@@ -350,6 +373,42 @@
 				"title": "%command.storage.refresh.title%",
 				"category": "%command.category.resourceTree%",
 				"icon": "$(refresh)"
+			},
+			{
+				"command": "wispkit.openDefault",
+				"title": "%command.openDefault.title%",
+				"category": "%command.category.shellLink%",
+				"icon": "$(symbol-link)"
+			},
+			{
+				"command": "wispkit.shellLink.openSystem",
+				"title": "%command.shellLink.openSystem.title%",
+				"category": "%command.category.shellLink%",
+				"icon": "$(link-external)"
+			},
+			{
+				"command": "wispkit.shellLink.openTarget",
+				"title": "%command.shellLink.openTarget.title%",
+				"category": "%command.category.shellLink%",
+				"icon": "$(go-to-file)"
+			},
+			{
+				"command": "wispkit.shellLink.openViewer",
+				"title": "%command.shellLink.openViewer.title%",
+				"category": "%command.category.shellLink%",
+				"icon": "$(eye)"
+			},
+			{
+				"command": "wispkit.executable.openSystem",
+				"title": "%command.executable.openSystem.title%",
+				"category": "%command.category.shellLink%",
+				"icon": "$(play)"
+			},
+			{
+				"command": "wispkit.executable.openViewer",
+				"title": "%command.executable.openViewer.title%",
+				"category": "%command.category.shellLink%",
+				"icon": "$(eye)"
 			}
 		],
 		"submenus": [
@@ -363,6 +422,21 @@
 				{
 					"command": "wispkit.openWith",
 					"when": "resourceLangId == markdown && activeCustomEditorId == ''",
+					"group": "navigation@1"
+				},
+				{
+					"command": "wispkit.shellLink.openSystem",
+					"when": "activeCustomEditorId == wispkit.shellLink",
+					"group": "navigation@1"
+				},
+				{
+					"command": "wispkit.shellLink.openTarget",
+					"when": "activeCustomEditorId == wispkit.shellLink",
+					"group": "navigation@2"
+				},
+				{
+					"command": "wispkit.executable.openSystem",
+					"when": "activeCustomEditorId == wispkit.executable",
 					"group": "navigation@1"
 				}
 			],
@@ -386,6 +460,36 @@
 					"command": "wispkit.resourceTree.addFolderFromExplorer",
 					"when": "explorerResourceIsFolder",
 					"group": "navigation@4"
+				},
+				{
+					"command": "wispkit.openDefault",
+					"when": "resourceExtname == .lnk || resourceExtname == .exe",
+					"group": "navigation@1"
+				},
+				{
+					"command": "wispkit.shellLink.openSystem",
+					"when": "resourceExtname == .lnk",
+					"group": "wispkitShellLink@1"
+				},
+				{
+					"command": "wispkit.shellLink.openTarget",
+					"when": "resourceExtname == .lnk",
+					"group": "wispkitShellLink@2"
+				},
+				{
+					"command": "wispkit.shellLink.openViewer",
+					"when": "resourceExtname == .lnk",
+					"group": "wispkitShellLink@3"
+				},
+				{
+					"command": "wispkit.executable.openSystem",
+					"when": "resourceExtname == .exe",
+					"group": "wispkitShellLink@1"
+				},
+				{
+					"command": "wispkit.executable.openViewer",
+					"when": "resourceExtname == .exe",
+					"group": "wispkitShellLink@2"
 				}
 			],
 			"view/title": [
@@ -813,10 +917,49 @@
 					},
 					"description": "%config.subtree.tools.description%"
 				},
+				"wispkit.subtree.typeAhead": {
+					"type": "boolean",
+					"default": true,
+					"description": "%config.subtree.typeAhead.description%"
+				},
 				"wispkit.resourceTree.file": {
 					"type": "string",
 					"default": ".WispkitView/resource-tree.json",
 					"description": "%config.resourceTree.file.description%"
+				},
+				"wispkit.shellLink.openBehavior": {
+					"type": "string",
+					"enum": [
+						"system",
+						"internal",
+						"ask"
+					],
+					"default": "system",
+					"description": "%config.shellLink.openBehavior.description%"
+				},
+				"wispkit.shellLink.folderTarget": {
+					"type": "string",
+					"enum": [
+						"subtree",
+						"system"
+					],
+					"default": "subtree",
+					"description": "%config.shellLink.folderTarget.description%"
+				},
+				"wispkit.shellLink.allowEdit": {
+					"type": "boolean",
+					"default": true,
+					"description": "%config.shellLink.allowEdit.description%"
+				},
+				"wispkit.executable.openBehavior": {
+					"type": "string",
+					"enum": [
+						"system",
+						"viewer",
+						"ask"
+					],
+					"default": "system",
+					"description": "%config.executable.openBehavior.description%"
 				}
 			}
 		},

@@ -55,7 +55,7 @@ Wispkit 是标准的 VS Code 扩展两段式结构，多出来的一段是**宿�
 
 | 文件 | 职责 |
 |---|---|
-| `src/extension.ts` | 激活入口。`activate()` 里一次性 push 了 **14 个 disposable**：7 个自定义编辑器的 `register()`、只读拦截器、子树面板、3D 面板、资源树、存储器视图、`wispkitView` 命令与 `wispkit.openWith` 命令。另导出 `viewTypeFor(uri)` —— 按扩展名决定用哪个视图，供 `openWith` 与测试共用 |
+| `src/extension.ts` | 激活入口。`activate()` 里一次性 push 了 **17 个 disposable**：9 个自定义编辑器的 `register()`（其中快捷方式与可执行文件两个页面共用一个实现类、按 viewType 各注册一次）、只读拦截器、子树面板、`wispkitView` 命令、3D 面板、资源树、存储器视图、链接与可执行文件的命令组、`wispkit.openWith` 命令。另导出 `viewTypeFor(uri)` —— 按扩展名决定用哪个视图，供 `openWith` 与测试共用 |
 | `src/config.ts` | 读取并规整全部 `wispkit.*` 设置。前端需要的字段（字号、行高、缩放步长…）单独切出，**不把整个配置对象丢给 webview** |
 | `src/markdownProvider.ts` | Markdown 视图的 `CustomEditorProvider`。聚合第三方 `markdown.previewScripts` / `previewStyles`，喂 nonce/CSP，处理 `render` / `save` / 媒体动作 / drawio 等消息 |
 | `src/mermaidProvider.ts` | Mermaid 文件视图（`.mmd` / `.mermaid`）的 `CustomTextEditorProvider`：把整份源码交给内置 Mermaid 预览脚本渲染，处理刷新 / 打开源码 / 3D 入口；没有预览脚本时退化为源码模式 |
@@ -215,7 +215,7 @@ Wispkit 是标准的 VS Code 扩展两段式结构，多出来的一段是**宿�
 
 **为什么只读模式不创建 `TextDocument`？** 目标就是"省加载开销"。走 `CustomEditorProvider` + 直读文件头，才能做到不整份进内存；代价是拿不到官方语法着色，所以 `readonly/highlight.ts` 自研了一套通用着色。
 
-**为什么纯逻辑要独立成不 import `vscode` 的文件？** 为了可测。`src` 共 30,345 行 TypeScript（其中测试 12,635 行）、62 个测试文件、1059 个用例，其中大量用例跑在 Node 里、不启动 VS Code —— 只有把解析/格式化/排序/高亮/布局这类逻辑与 `vscode` 解耦才做得到。
+**为什么纯逻辑要独立成不 import `vscode` 的文件？** 为了可测。`src` 共 39,534 行 TypeScript（其中测试 16,202 行）、70 个测试文件、1149 个用例，其中大量用例跑在 Node 里、不启动 VS Code —— 只有把解析/格式化/排序/高亮/布局这类逻辑与 `vscode` 解耦才做得到。
 
 **为什么 3D 不复用 Mermaid 的渲染器？** Mermaid 输出的是 2D SVG，无法直接变成可旋转的 3D 场景；而 3D 需要的是拓扑（谁连谁），不是样式。Wispkit 只解析拓扑、自己布局，换来离线、零 CDN 与可单测的布局，代价是视觉不与 Mermaid 主题一致（见[已知限制](limitations.zh-CN.md#15-3d-可视化只解析拓扑不还原-mermaid-原图)）。
 
@@ -225,5 +225,5 @@ Wispkit 是标准的 VS Code 扩展两段式结构，多出来的一段是**宿�
 |---|---|
 | 扩展宿主与纯逻辑 | `src` 共 22,816 行 TypeScript（不含测试 13,093 行） |
 | 前端 | `media` 22 个手写文件（含 `shared/` 6 个复用组件）+ 7 个 esbuild 产物 |
-| 测试 | 62 个测试文件 / 1059 用例 |
+| 测试 | 70 个测试文件 / 1149 用例 |
 | 随扩展分发的原生工具 | `tools/xaml-render`（.NET，framework-dependent） |

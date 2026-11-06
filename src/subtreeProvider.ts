@@ -4,6 +4,8 @@ import * as path from 'node:path';
 import { execFile, spawn } from 'node:child_process';
 import { columnDefinition, formatCell, resolveColumns, type ColumnId } from './subtree/columns';
 import { formatCommandLine, parseTools, resolveToolInvocation, type SubtreeToolConfig } from './subtree/config';
+import { extractFileIcons } from './subtree/fileIcons';
+import { isExecutablePath, isShellLinkPath } from './shellLink/policy';
 import { collectExplorerCommands, filterAvailableCommands, hasExplorerContextMenu, nlsFileCandidates, type ExplorerCommand, type ExtensionContribution } from './subtree/explorerCommands';
 import {
 	deleteConfirmation,
@@ -314,6 +316,7 @@ export class SubtreePanel {
 			tools: this.tools.map(tool => ({ label: tool.label, command: tool.command, shell: tool.shell })),
 			sort: { key: this.sortState.key, direction: this.sortState.direction },
 			clipboard: describeClipboard(this.clipboard),
+			typeAhead: vscode.workspace.getConfiguration('wispkit').get<boolean>('subtree.typeAhead', true),
 			// 转不出 URI（主题不可解析 / asWebviewUri 抛错）时为 undefined，前端回退自绘 sprite。
 			iconTheme: this.iconTheme
 				? toWebviewIconTheme(this.iconTheme.definition, this.iconTheme.root, this.panel.webview)
@@ -397,13 +400,31 @@ export class SubtreePanel {
 		if (!result.error) {
 			this.levelEntries.set(requestedPath, result.entries);
 		}
+		const icons = await this.iconsFor(result.entries);
 		await webview.postMessage({
 			type: 'wispkit.subtree.level',
 			requestId,
 			path: requestedPath,
 			rows: result.rows,
 			error: result.error,
+			icons: icons && Object.keys(icons).length > 0 ? icons : undefined,
 		});
+	}
+
+	/**
+	 * 这一层里 `.lnk` / `.exe` 的真实图标。取不到就返回 undefined，前端照旧用图标主题，
+	 * 绝不用占位图冒充。
+	 *
+	 * 不做「层」级缓存：`extractFileIcons` 自己按路径 + mtime + 大小缓存，命中时不会
+	 * 再起进程；这样文件被替换后刷新一次就能拿到新图标。
+	 */
+	private async iconsFor(entries: readonly TreeEntry[]): Promise<Record<string, string> | undefined> {
+		const icons = await extractFileIcons(entries.map(entry => ({
+			path: entry.path,
+			mtime: entry.mtime,
+			size: entry.size,
+		})));
+		return icons.size === 0 ? undefined : Object.fromEntries(icons);
 	}
 
 	/** 排序：改状态 + 用缓存重排所有已加载层级，一个字节都不用重读。 */
@@ -423,11 +444,13 @@ export class SubtreePanel {
 			if (!entries) {
 				continue;
 			}
+			const icons = await this.iconsFor(entries);
 			await this.panel.webview.postMessage({
 				type: 'wispkit.subtree.level',
 				requestId: '',
 				path: target,
 				rows: buildRows(entries, columns, this.owner, this.sortState),
+				icons: icons && Object.keys(icons).length > 0 ? icons : undefined,
 			});
 		}
 
@@ -1241,6 +1264,11 @@ export class SubtreePanel {
 
 	private async openEntry(targetPath: string): Promise<void> {
 		try {
+			// `.lnk` / `.exe` 走「默认响应方式」：交接给系统或内部视图，别让它们落进文本编辑器。
+			if (isShellLinkPath(targetPath) || isExecutablePath(targetPath)) {
+				await vscode.commands.executeCommand('wispkit.openDefault', vscode.Uri.file(targetPath));
+				return;
+			}
 			await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(targetPath));
 		} catch (error) {
 			this.status(`打开失败：${error instanceof Error ? error.message : String(error)}`, 'error');

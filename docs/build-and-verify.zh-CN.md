@@ -4,7 +4,7 @@ title: 构建与验证
 description: 环境、npm 命令、测试构成、3D bundle 与资源树真机端到端探针、自检扩展与打包安装
 tags: [build, test, verification, packaging]
 status: stable
-generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
+generated: { by: dsh/deepseek-flash, at: 2026-11-06T15:50:00+08:00 }
 ---
 
 # 构建与验证
@@ -64,7 +64,7 @@ runner 特意选 Windows：测试里有若干路径契约断言 Windows 语义�
 - 框架：**mocha** + **jsdom**（`@types/jsdom`、`jsdom` 均在 devDependencies）。
 - 位置：`src/test/*.test.ts` → 编译成 `out/test/*.test.js`。
 - 特点：**纯逻辑测试，不启动 VS Code 实例**。凡是涉及 `vscode` API 的部分都被隔离在 `*Provider.ts` 里，纯逻辑放独立文件（不 import `vscode`），因此可以直接单测。
-- 当前：**62 个测试文件 / 1059 个用例**（`npm test` 输出 `1059 passing`）。
+- 当前：**70 个测试文件 / 1149 个用例**（`npm test` 输出 `1149 passing`）。
 
 ### 用例分布
 
@@ -96,7 +96,7 @@ npm test && npx mocha "out/test/**/*.test.js" --reporter json
 
 ### 资源管理测试与打包检查
 
-资源管理相关的 9 个测试文件共 **94 个用例**（已包含在总数 1059 内）：
+资源管理相关的 9 个测试文件共 **94 个用例**（已包含在总数 1149 内）：
 
 | 测试文件 | 用例 | 覆盖 |
 |---|---:|---|

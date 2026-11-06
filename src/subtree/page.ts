@@ -46,6 +46,8 @@ export interface SubtreeViewConfig {
 	readonly sort: SubtreeSortView;
 	/** 剪贴板文案（没有内容时为 undefined / 缺省），显示在「粘贴」按钮的 title 上。 */
 	readonly clipboard?: string;
+	/** 按键跳转（学资源管理器的前缀匹配）是否启用；缺省视为开启。 */
+	readonly typeAhead?: boolean;
 	/**
 	 * 用户当前图标主题的图标（URI 表）。有值则条目用主题自己的图标、
 	 * 与资源管理器完全一致；缺省（主题不可解析等）则回退到内联自绘 sprite。

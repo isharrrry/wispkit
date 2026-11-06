@@ -307,6 +307,21 @@ body.is-wispkit-pointer-drag {
 }
 
 /*
+ * 文件自带的真实图标（.lnk / .exe 从文件本身抽出来的 PNG）。
+ * 不能走上面的 mask 方案：mask 会把它压成单色剪影，而这里要看的就是程序自己的彩色图标。
+ */
+img.wispkit-subtree-own-icon {
+	width: 16px;
+	height: 16px;
+	object-fit: contain;
+	background-color: transparent;
+	opacity: 1;
+	-webkit-mask-image: none;
+	mask-image: none;
+	image-rendering: -webkit-optimize-contrast;
+}
+
+/*
  * 主题图标：用户当前图标主题（如 vscode-modern-icons）自己的 svg，URI 由宿主经
  * config.iconTheme 下发。用 mask 而不是 <img> —— 主题的 svg 全是 fill="currentColor"
  * 的单色图标（实测 117 个文件的硬编码颜色数为 0），mask + background-color 才能跟随

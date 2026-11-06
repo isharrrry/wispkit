@@ -4,14 +4,14 @@ title: 配置参考
 description: 全部配置项的字段级参考，以及 Wispkit.json、自定义工具与执行模式
 tags: [configuration, settings, reference]
 status: stable
-generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
+generated: { by: dsh/deepseek-flash, at: 2026-11-06T15:50:00+08:00 }
 ---
 
 # 配置参考
 
 [English](configuration.md) | **中文** | [Español](configuration.es.md)
 
-全部配置项定义在 `package.json` 的 `contributes.configuration` 下，共 **14 个**。
+全部配置项定义在 `package.json` 的 `contributes.configuration` 下，共 **19 个**。
 
 ## 总表
 
@@ -30,7 +30,12 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
 | `wispkit.readonly.extensions` | string[] | 61 个通配符 | 全局只读模式 | 只想让特定类型只读 | 改动即重写 associations；**不要**加 `.md`/`.html`/`.xaml`/图片/视频 |
 | `wispkit.subtree.columns` | string[]（枚举 9 值） | `name,size,type,mtime,ctime,owner` | 子树面板 | 想按修改时间/大小审视目录 | 非法值过滤、重复去重、为空回退默认 |
 | `wispkit.subtree.tools` | object[] | `[]` | 子树面板 | 想把常用外部命令挂到面板右侧 | 参数不做 shell 转义；`external` 会真起窗口 |
+| `wispkit.subtree.typeAhead` | boolean | `true` | 子树面板 | 不希望按键改变选中项 | 只影响子树列表 |
 | `wispkit.resourceTree.file` | string | `.WispkitView/resource-tree.json` | 自定义资源管理 | 想把树文件放到别处，或在多根工作区里固定到某个根 | 改完自动重载；路径解析失败时保留当前树并显示诊断 |
+| `wispkit.shellLink.openBehavior` | `system` \| `internal` \| `ask` | `system` | Windows 快捷方式（`.lnk`） | 希望快捷方式指向的目标在 Wispkit 里打开而不是直接运行 | `internal` / `ask` 会取代快捷方式原本的双击行为 |
+| `wispkit.shellLink.folderTarget` | `subtree` \| `system` | `subtree` | Windows 快捷方式（`.lnk`） | 希望文件夹目标交给系统资源管理器而不是子树面板 | 只在打开行为为 `internal` 时才被读取 |
+| `wispkit.shellLink.allowEdit` | boolean | `true` | Windows 快捷方式（`.lnk`） | 希望属性页保持只读 | 设为 `false` 时不显示编辑表单 |
+| `wispkit.executable.openBehavior` | `system` \| `viewer` \| `ask` | `system` | 可执行文件（`.exe`） | 希望可执行文件打开属性页而不是运行 | `viewer` / `ask` 会取代原本的双击行为 |
 
 ## 目录导航
 
@@ -153,6 +158,14 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
 
 替换是**纯字符串替换**，不做 shell 转义 —— 路径含空格时请在配置里自己加引号（`"cd '${dir}'"`）。
 
+### `wispkit.subtree.typeAhead`
+
+- 类型 `boolean`，默认 `true`。
+- 子树列表里的按键跳转，行为与资源管理器一致：输入字母或数字跳到以它开头的第一个条目，再按同一个字符继续往下找（到末尾回到开头）。
+- 中文按**输入法落字的文本**匹配 —— 不做拼音转换，也没有字表需要预载。
+- 每次按键只对**当前可见行**做一次前缀比较，而行数本来就有单层上限，所以没有需要配置的数量阈值。
+- 关掉它不影响任何其它行为：点击、选择、排序、拖放照旧。
+
 ## 自定义资源管理
 
 ### `wispkit.resourceTree.file`
@@ -191,6 +204,35 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
 - `group` 只有 `type` / `id` / `name` / `children`，**不指向磁盘**；`folder` 额外有 `path`。
 - `id` 在同一文件内必须唯一；重复 / 超长 / 不是字符串会被自动重新分配并给出警告（缺失时直接生成新 id）。
 - 节点上限：总节点 2000、单层子项 200、深度 12；超出部分在读取时截断并提示。
+
+## Windows 快捷方式与可执行文件
+
+这四个设置决定 `.lnk` 快捷方式与 `.exe` 可执行文件如何打开，以及快捷方式页是否可编辑。两者各自有一个 `option` 优先级的编辑器，所以除非你主动设置，这里的一切都不改变原来的双击行为。
+
+### `wispkit.shellLink.openBehavior`
+
+- 类型 `string`，枚举 `system` / `internal` / `ask`，默认 `system`。
+- `system`：交给 Windows，等同资源管理器里双击。
+- `internal`：在 Wispkit 里打开目标 —— 文件夹进子树面板，文件用对应视图打开。
+- `ask`：每次询问走哪条。
+
+### `wispkit.shellLink.folderTarget`
+
+- 类型 `string`，枚举 `subtree` / `system`，默认 `subtree`。
+- 只在 `openBehavior` 为 `internal` **且**目标看起来是文件夹时生效。
+- `subtree`：进子树浏览面板；`system`：交给系统资源管理器。
+
+### `wispkit.shellLink.allowEdit`
+
+- 类型 `boolean`，默认 `true`。
+- 快捷方式页是否显示编辑表单。设为 `false` 时页面仍可读，但不可写。
+
+### `wispkit.executable.openBehavior`
+
+- 类型 `string`，枚举 `system` / `viewer` / `ask`，默认 `system`。
+- `system`：运行该可执行文件；`viewer`：打开 PE 属性页；`ask`：先询问。
+
+**工作目录约定**（两者刻意不同）：从 Wispkit 启动可执行文件时，工作目录钉成它自己所在的目录；启动快捷方式时，用快捷方式里记录的启动目录，不做任何覆盖。
 
 ## `configurationDefaults`：mermaid 默认就能缩放
 
@@ -259,6 +301,12 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
   ],
 
   // 自定义资源管理
-  "wispkit.resourceTree.file": "${workspaceFolder}/.WispkitView/resource-tree.json"
+  "wispkit.resourceTree.file": "${workspaceFolder}/.WispkitView/resource-tree.json",
+
+  // Windows 快捷方式与可执行文件
+  "wispkit.shellLink.openBehavior": "ask",
+  "wispkit.shellLink.folderTarget": "subtree",
+  "wispkit.shellLink.allowEdit": true,
+  "wispkit.executable.openBehavior": "viewer"
 }
 ```

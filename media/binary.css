@@ -1,0 +1,176 @@
+body.wispkit-binary {
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+	margin: 0;
+	padding: 0 0 32px;
+}
+
+.wispkit-binary-head {
+	padding: 20px 24px 8px;
+	border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.25));
+}
+
+.wispkit-binary-head h1 {
+	margin: 0 0 4px;
+	font-size: 1.4em;
+	font-weight: 600;
+	word-break: break-all;
+}
+
+.wispkit-binary-subtitle {
+	margin: 0;
+	opacity: 0.75;
+	word-break: break-all;
+}
+
+.wispkit-binary-body {
+	padding: 16px 24px;
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+.wispkit-binary-section h2,
+.wispkit-binary-edit h2 {
+	margin: 0 0 8px;
+	font-size: 1em;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	opacity: 0.8;
+}
+
+.wispkit-binary-section table {
+	width: 100%;
+	border-collapse: collapse;
+	table-layout: fixed;
+}
+
+.wispkit-binary-section th,
+.wispkit-binary-section td {
+	text-align: left;
+	vertical-align: top;
+	padding: 5px 10px;
+	border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.18));
+}
+
+.wispkit-binary-section th {
+	width: 160px;
+	font-weight: 500;
+	opacity: 0.8;
+}
+
+.wispkit-binary-section td code {
+	font-family: var(--vscode-editor-font-family, monospace);
+	word-break: break-all;
+	white-space: pre-wrap;
+}
+
+.wispkit-binary-hint {
+	display: block;
+	margin-top: 2px;
+	font-size: 0.85em;
+	opacity: 0.6;
+}
+
+.wispkit-binary-notices {
+	margin: 0;
+	padding: 10px 16px 10px 30px;
+	border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700);
+	background: var(--vscode-inputValidation-warningBackground, rgba(204, 167, 0, 0.1));
+}
+
+.wispkit-binary-error {
+	border-left: 3px solid var(--vscode-editorError-foreground, #f14c4c);
+	background: var(--vscode-inputValidation-errorBackground, rgba(241, 76, 76, 0.1));
+	padding: 10px 16px;
+}
+
+.wispkit-binary-edit {
+	border-top: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.25));
+	padding-top: 16px;
+	max-width: 760px;
+}
+
+.wispkit-binary-note {
+	margin: 0 0 12px;
+	opacity: 0.75;
+}
+
+.wispkit-binary-field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-bottom: 12px;
+}
+
+.wispkit-binary-field > span {
+	font-size: 0.9em;
+	opacity: 0.85;
+}
+
+.wispkit-binary-field input,
+.wispkit-binary-field textarea {
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: inherit;
+	color: var(--vscode-input-foreground);
+	background: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.35));
+	border-radius: 2px;
+	padding: 4px 6px;
+	resize: vertical;
+	box-sizing: border-box;
+	width: 100%;
+}
+
+.wispkit-binary-field input:focus,
+.wispkit-binary-field textarea:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.wispkit-binary-actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 4px;
+}
+
+.wispkit-binary-actions button {
+	font-family: inherit;
+	font-size: inherit;
+	color: var(--vscode-button-foreground);
+	background: var(--vscode-button-background);
+	border: none;
+	border-radius: 2px;
+	padding: 5px 12px;
+	cursor: pointer;
+}
+
+.wispkit-binary-actions button:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.wispkit-binary-actions button + button {
+	color: var(--vscode-button-secondaryForeground);
+	background: var(--vscode-button-secondaryBackground);
+}
+
+.wispkit-binary-actions button + button:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.wispkit-binary-status {
+	min-height: 1.2em;
+	margin: 8px 0 0;
+	opacity: 0.85;
+}
+
+.wispkit-binary-status[data-level='error'] {
+	color: var(--vscode-errorForeground, #f14c4c);
+}
+
+.wispkit-binary-status[data-level='ok'] {
+	color: var(--vscode-testing-iconPassed, #73c991);
+}

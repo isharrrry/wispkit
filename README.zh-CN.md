@@ -7,7 +7,7 @@
 
 [English](README.md) | **中文** | [Español](README.es.md)
 
-> VS Code 的浏览增强扩展。**不修改 VS Code 任何文件、不依赖补丁**，用 7 个自定义编辑器承载 Markdown / Mermaid / 图片 / 视频 / HTML / XAML / 只读文本，另加一个活动栏的自定义资源管理视图、一个资源管理器子树面板，以及 Markdown / Mermaid 的 3D 图浏览面板。
+> VS Code 的浏览增强扩展。**不修改 VS Code 任何文件、不依赖补丁**，用 9 个自定义编辑器承载 Markdown / Mermaid / 图片 / 视频 / HTML / XAML / 只读文本 / Windows 快捷方式 / 可执行文件，另加一个活动栏的自定义资源管理视图、一个资源管理器子树面板，以及 Markdown / Mermaid 的 3D 图浏览面板。
 
 扩展宿主是纯 TypeScript（`engines.vscode: ^1.71.0`），在 Windows 上开发与验证。XAML 视图附带一个 framework-dependent 的 .NET 渲染器，需要 .NET 10 的 Windows Desktop 运行时；其余 6 个视图零原生依赖。
 
@@ -58,7 +58,7 @@ dotnet build -c Release
 
 ## 核心概念
 
-1. **用自定义编辑器，不补丁 VS Code** — 7 个 `CustomEditorProvider` 竞争打开方式；Markdown / Mermaid / 图片 / 视频 / HTML / XAML 是 `priority: default`（默认接管），只读文本是 `option`（要显式切换）。想退回内置：*Reopen Editor With…* 或 `workbench.editorAssociations`。
+1. **用自定义编辑器，不补丁 VS Code** — 9 个 `CustomEditorProvider` 竞争打开方式；Markdown / Mermaid / 图片 / 视频 / HTML / XAML 是 `priority: default`（默认接管），只读文本是 `option`（要显式切换）。想退回内置：*Reopen Editor With…* 或 `workbench.editorAssociations`。
 2. **宿主定路径，前端定交互** — webview 里的资源地址是 `vscode-webview://`，**反解不出真实路径**；所以媒体右键只上报「第几个元素 + 类型」，路径与源码由宿主回 Markdown 原文里取，图片再用 `alt` 交叉校验。详见 [架构](docs/architecture.zh-CN.md)。
 3. **渲染走内置管线，不自己实现 Markdown** — 用内置引擎的隐藏命令 `markdown.api.render`，这样第三方 `markdown.markdownItPlugins`（mermaid、katex）自动生效；内容更新后在 `window` 派发 `vscode.markdown.updateContent` 让前端脚本重渲染。详见 [视图与交互](docs/views-and-interaction.zh-CN.md)。
 4. **只读 = 不加载，不是禁编辑** — 只读预览读文件头若干字节、按行截断，不构建 `TextDocument`、不整份进内存；右下角「解锁编辑」切回原生编辑器。详见 [配置参考](docs/configuration.zh-CN.md)。
@@ -79,8 +79,8 @@ dotnet build -c Release
 | 扩展承诺了什么、每一项按什么判定 | [需求与验收判据](docs/requirements.zh-CN.md) |
 | 质量目标、测试层级与各自盲区、合并门禁、缺陷分级 | [测试与质量约束](docs/test-and-quality.zh-CN.md) |
 | 分层、模块职责、一次完整数据流 | [架构](docs/architecture.zh-CN.md) |
-| 7 个视图、自定义资源管理、子树面板与 3D 图浏览的交互、手势、消息契约 | [视图与交互](docs/views-and-interaction.zh-CN.md) |
-| 14 个配置项的字段级参考、`Wispkit.json`、工具占位符 | [配置参考](docs/configuration.zh-CN.md) |
+| 9 个视图、自定义资源管理、子树面板与 3D 图浏览的交互、手势、消息契约 | [视图与交互](docs/views-and-interaction.zh-CN.md) |
+| 19 个配置项的字段级参考、`Wispkit.json`、工具占位符 | [配置参考](docs/configuration.zh-CN.md) |
 | 构建、测试、真机探针、打包安装 | [构建与验证](docs/build-and-verify.zh-CN.md) |
 | 做不到的事、没验证过的事 | [已知限制与未验证项](docs/limitations.zh-CN.md) |
 | 一步步是怎么做出来的、每个真实踩过的坑 | [开发过程与踩坑](docs/development-notes.zh-CN.md) |
@@ -109,7 +109,7 @@ dotnet build -c Release
 | Node / npm | **^22.22.2 / ^24.15.0 / >=26**（jsdom 30 接受的范围）；CI 固定 22.22.2，在 Windows 上按 `npm ci` → lint → compile → test 执行 |
 | TypeScript | 5.7 |
 | esbuild | 0.24（8 个 webview bundle，`graph3d` 单独压缩） |
-| 测试 | mocha + jsdom，**1059 passing**，62 个测试文件 |
+| 测试 | mocha + jsdom，**1149 passing**，70 个测试文件 |
 | 3D bundle | `media/dist/graph3d.js` 约 603 KB（含 three.js，minified） |
 | lint | eslint 9，**0 error** |
 | VSIX | 172 条目 / 约 1.71 MB（含 docs、三语 README 与界面截图） |

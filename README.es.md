@@ -7,7 +7,7 @@
 
 [English](README.md) | [中文](README.zh-CN.md) | **Español**
 
-> Mejoras de navegación para VS Code. **Nunca parchea VS Code ni modifica ninguno de sus archivos**: siete editores personalizados gestionan Markdown / Mermaid / imágenes / vídeos / HTML / XAML / texto de solo lectura, más una vista de gestión de recursos personalizada en la barra de actividades, un panel de subárbol en el Explorador y un navegador 3D de gráficos para Markdown y Mermaid.
+> Mejoras de navegación para VS Code. **Nunca parchea VS Code ni modifica ninguno de sus archivos**: nueve editores personalizados gestionan Markdown / Mermaid / imágenes / vídeos / HTML / XAML / texto de solo lectura / accesos directos de Windows / ejecutables, más una vista de gestión de recursos personalizada en la barra de actividades, un panel de subárbol en el Explorador y un navegador 3D de gráficos para Markdown y Mermaid.
 
 El host de la extensión es TypeScript puro (`engines.vscode: ^1.71.0`), desarrollado y verificado en Windows. La vista XAML incluye un renderizador .NET framework-dependent y requiere el runtime .NET 10 Windows Desktop; las otras seis vistas no tienen dependencias nativas.
 
@@ -58,7 +58,7 @@ dotnet build -c Release
 
 ## Conceptos clave
 
-1. **Editores personalizados, no parches** — siete `CustomEditorProvider` compiten por tipos de archivo. Markdown, Mermaid, imágenes, vídeos, HTML y XAML usan `priority: default` (toman el control); el texto de solo lectura usa `option` (cambio explícito). Para volver al editor integrado: *Reopen Editor With…* o `workbench.editorAssociations`.
+1. **Editores personalizados, no parches** — nueve `CustomEditorProvider` compiten por tipos de archivo. Markdown, Mermaid, imágenes, vídeos, HTML y XAML usan `priority: default` (toman el control); el texto de solo lectura, los accesos directos de Windows y los ejecutables usan `option` (cambio explícito). Para volver al editor integrado: *Reopen Editor With…* o `workbench.editorAssociations`.
 2. **El host gestiona las rutas, la webview la interacción** — las URL de recursos dentro de una webview son `vscode-webview://` y **no se pueden revertir a una ruta real**. Por eso el menú contextual de medios informa solo "índice + tipo", y el host relee la ruta y el código fuente del texto Markdown; las imágenes se contrastan además con `alt`. Ver [arquitectura](docs/architecture.es.md).
 3. **Renderizar con el pipeline integrado** — la extensión invoca el comando oculto `markdown.api.render`, de modo que los `markdown.markdownItPlugins` de terceros (mermaid, katex) se aplican solos, y luego emite `vscode.markdown.updateContent` sobre `window` para que los scripts de la webview vuelvan a renderizar. Ver [vistas e interacción](docs/views-and-interaction.es.md).
 4. **Solo lectura significa "no cargado", no "edición prohibida"** — la vista previa lee solo los primeros N bytes, trunca por líneas, no construye `TextDocument` y nunca carga el archivo completo; un botón flotante "desbloquear edición" cambia al editor nativo. Ver [configuración](docs/configuration.es.md).
@@ -79,7 +79,7 @@ dotnet build -c Release
 | Qué se promete y cómo se juzga cada promesa | [Requisitos y criterios de aceptación](docs/requirements.es.md) |
 | Objetivos de calidad, niveles de prueba y sus puntos ciegos, la puerta de integración, clasificación de defectos | [Restricciones de prueba y calidad](docs/test-and-quality.es.md) |
 | Capas, responsabilidades de módulos, un flujo de datos completo | [Arquitectura](docs/architecture.es.md) |
-| Interacción, gestos y contratos de mensajes de las siete vistas, la gestión de recursos personalizada, el panel de subárbol y la navegación 3D de gráficos | [Vistas e interacción](docs/views-and-interaction.es.md) |
+| Interacción, gestos y contratos de mensajes de las nueve vistas, la gestión de recursos personalizada, el panel de subárbol y la navegación 3D de gráficos | [Vistas e interacción](docs/views-and-interaction.es.md) |
 | Referencia a nivel de campo de los 14 ajustes, `Wispkit.json`, marcadores de herramientas | [Configuración](docs/configuration.es.md) |
 | Compilación, pruebas, sondas en máquina real, empaquetado | [Compilación y verificación](docs/build-and-verify.es.md) |
 | Lo que no puede hacer y lo que nunca se verificó | [Limitaciones conocidas](docs/limitations.es.md) |
@@ -109,7 +109,7 @@ La tabla de temas de arriba y la del [índice de documentación](docs/index.es.m
 | Node / npm | **^22.22.2 / ^24.15.0 / >=26** (lo que acepta jsdom 30); la CI fija 22.22.2 y ejecuta `npm ci` → lint → compile → test en Windows |
 | TypeScript | 5.7 |
 | esbuild | 0.24 (8 bundles de webview; `graph3d` se minifica aparte) |
-| Pruebas | mocha + jsdom, **1059 pasando**, 62 archivos de prueba |
+| Pruebas | mocha + jsdom, **1149 pasando**, 70 archivos de prueba |
 | Bundle 3D | `media/dist/graph3d.js`, unos 603 KB (incluye three.js, minificado) |
 | Lint | eslint 9, **0 errores** |
 | VSIX | 172 entradas / ~1,71 MB (incluye docs, los tres README y las capturas) |

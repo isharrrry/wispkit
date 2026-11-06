@@ -4,7 +4,7 @@ title: Compilación y verificación
 description: Entorno, los comandos npm, estructura de las pruebas, el bundle 3D y las sondas de extremo a extremo del árbol de recursos, la extensión de autoprueba en máquina real, empaquetado e instalación
 tags: [build, test, verification, packaging]
 status: stable
-generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
+generated: { by: dsh/deepseek-flash, at: 2026-11-06T15:50:00+08:00 }
 ---
 
 # Compilación y verificación
@@ -64,7 +64,7 @@ Para comprobar la vía negativa de la puerta en local: añade una variable local
 - Framework: **mocha** + **jsdom** (ambos en devDependencies).
 - Ubicación: `src/test/*.test.ts` → compilado a `out/test/*.test.js`.
 - Carácter: **pruebas de lógica pura, sin arrancar una instancia de VS Code**. Todo lo que toca la API de `vscode` está aislado en `*Provider.ts`, mientras que la lógica pura vive en archivos aparte (que no importan `vscode`) y por tanto se puede probar por unidad directamente.
-- Actual: **62 archivos de prueba / 1059 casos** (`npm test` imprime `1059 passing`).
+- Actual: **70 archivos de prueba / 1149 casos** (`npm test` imprime `1149 passing`).
 
 ### Casos por archivo
 
@@ -99,7 +99,7 @@ Las **sondas 3D de extremo a extremo en máquina real** están en `.selftest/e2e
 
 ### Pruebas del árbol de recursos y comprobación del empaquetado
 
-Los nueve archivos de prueba del árbol de recursos suman **94 casos** (ya incluidos en los 1059):
+Los nueve archivos de prueba del árbol de recursos suman **94 casos** (ya incluidos en los 1149):
 
 | Archivo de prueba | Casos | Cubre |
 |---|---:|---|

@@ -74,6 +74,10 @@ let sortState = { key: 'name', direction: 'asc' };
 let requestSeed = 0;
 let typeAheadBuffer = '';
 let typeAheadTimer = null;
+/** 输入法组合期间不处理 keydown（此时 key 恒为 'Process'），落字后走 compositionend。 */
+let typeAheadComposing = false;
+/** 连击重置时间：与资源管理器一致的体感，超过就当作新的一次输入。 */
+const TYPE_AHEAD_RESET_MS = 700;
 /** 最后一条发出的消息，供自动化断言「批量操作真的带上了所有选中项」。 */
 let lastMessage = null;
 /**
@@ -586,8 +590,15 @@ function pruneSelection() {
 	}
 }
 
-function applyLevel(path, rows, error) {
+function applyLevel(path, rows, error, icons) {
 	levels.set(path, { rows: Array.isArray(rows) ? rows : [], error: error ?? undefined });
+	if (icons && typeof icons === 'object') {
+		for (const [filePath, dataUri] of Object.entries(icons)) {
+			if (typeof dataUri === 'string' && dataUri.startsWith('data:image/')) {
+				fileIconByPath.set(filePath, dataUri);
+			}
+		}
+	}
 	pruneSelection();
 	if (pendingExpand.has(path) && !error) {
 		pendingExpand.delete(path);
@@ -707,8 +718,24 @@ function makeThemeIcon(uri, className) {
 	return span;
 }
 
-/** 条目图标：能用主题就用主题（与资源管理器一致），否则回退自绘。 */
+/*
+ * `.lnk` / `.exe` 的真实图标（宿主从文件本身抽出来的 PNG data URI）。
+ * 图标主题只能按扩展名给一个通用图标，而这两类文件的意义就在「是哪一个程序」。
+ */
+const fileIconByPath = new Map();
+
+/** 条目图标：文件自带图标 > 图标主题 > 内联自绘。 */
 function makeItemIcon(row, className) {
+	const own = row.isDirectory ? undefined : fileIconByPath.get(row.path);
+	if (own) {
+		const img = document.createElement('img');
+		img.className = 'wispkit-subtree-icon wispkit-subtree-item-icon wispkit-subtree-own-icon';
+		img.src = own;
+		img.alt = '';
+		img.draggable = false;
+		img.setAttribute('aria-hidden', 'true');
+		return img;
+	}
 	const uri = themeIconUri(row);
 	if (uri) {
 		return makeThemeIcon(uri, 'wispkit-subtree-icon wispkit-subtree-item-icon');
@@ -918,6 +945,92 @@ function scrollRowIntoView(path) {
 	const element = Array.from(rowsElement?.querySelectorAll('.wispkit-subtree-row') ?? [])
 		.find(row => row.dataset.path === path);
 	element?.scrollIntoView?.({ block: 'nearest' });
+}
+
+function resetTypeAhead() {
+	typeAheadBuffer = '';
+	typeAheadTimer = null;
+}
+
+/** 按键跳转是否启用（设置项 `wispkit.subtree.typeAhead`，缺省开启）。 */
+function typeAheadEnabled() {
+	return config.typeAhead !== false;
+}
+
+/** 从 startIndex 起环形找第一个以 needle 开头的名字。 */
+function findRowByNameFrom(rows, needle, startIndex) {
+	const total = rows.length;
+	for (let offset = 0; offset < total; offset += 1) {
+		const row = rows[(startIndex + offset) % total];
+		if (String(row.name ?? '').toLowerCase().startsWith(needle)) {
+			return row;
+		}
+	}
+	return null;
+}
+
+/**
+ * 按键跳转（学资源管理器）：
+ * - 连续输入累积成前缀，停顿超过 `TYPE_AHEAD_RESET_MS` 就当新的一次输入；
+ * - 新一次输入从**当前选中项的下一个**开始找，所以连按同一个字母会依次往下跳；
+ * - 累积前缀找不到时退化成单字符循环（连按 a、a、a 仍能逐个走）；
+ * - 中文靠输入法：组合结束后用 `compositionend` 的文本整体匹配，不去猜拼音。
+ *
+ * 匹配只对**当前可见行**做一次前缀比较，行数上限就是单层条目上限，所以没有按数量
+ * 分级启用的必要；开关只是让人能彻底关掉它。
+ */
+function applyTypeAhead(chunk, options = {}) {
+	if (!typeAheadEnabled()) {
+		return null;
+	}
+	const text = String(chunk ?? '');
+	if (!text) {
+		return null;
+	}
+	const rows = visibleRows();
+	if (rows.length === 0) {
+		return null;
+	}
+
+	const replace = options.replace === true;
+	const continuing = !replace && typeAheadBuffer.length > 0;
+	const anchorIndex = rows.findIndex(row => row.path === anchorPath);
+	const needle = (replace ? text : typeAheadBuffer + text).toLowerCase();
+
+	let startIndex = 0;
+	if (continuing) {
+		startIndex = Math.max(anchorIndex, 0);
+	} else if (!replace && anchorIndex >= 0) {
+		startIndex = anchorIndex + 1;
+	}
+
+	let matched = findRowByNameFrom(rows, needle, startIndex);
+	if (!matched && continuing && startIndex !== 0) {
+		matched = findRowByNameFrom(rows, needle, 0);
+	}
+	if (!matched && !replace && needle.length > 1 && text.length === 1) {
+		const single = text.toLowerCase();
+		const from = anchorIndex >= 0 ? anchorIndex + 1 : 0;
+		matched = findRowByNameFrom(rows, single, from) ?? findRowByNameFrom(rows, single, 0);
+		typeAheadBuffer = single;
+	} else {
+		typeAheadBuffer = needle;
+	}
+
+	if (typeAheadTimer) {
+		clearTimeout(typeAheadTimer);
+	}
+	typeAheadTimer = setTimeout(resetTypeAhead, TYPE_AHEAD_RESET_MS);
+
+	if (!matched) {
+		return null;
+	}
+	selection = [matched.path];
+	anchorPath = matched.path;
+	renderTree();
+	renderActions();
+	scrollRowIntoView(matched.path);
+	return matched.name;
 }
 
 /**
@@ -1505,7 +1618,7 @@ window.addEventListener('message', event => {
 	}
 	if (message.type === 'wispkit.subtree.level') {
 		setStatus('');
-		applyLevel(message.path, message.rows, message.error);
+		applyLevel(message.path, message.rows, message.error, message.icons);
 	} else if (message.type === 'wispkit.subtree.config') {
 		applyConfig(message.config);
 	} else if (message.type === 'wispkit.subtree.status') {
@@ -1514,6 +1627,22 @@ window.addEventListener('message', event => {
 });
 
 /* ---------------------------------------------------------------- 键盘：Ctrl+A 全选、字母跳转 */
+
+/*
+ * 输入法：组合期间的 keydown 全都是 key === 'Process'，单字符过滤会把它挡掉；
+ * 落字那一刻才有可用的文本，用 compositionend 接住它，中文文件名因此也能跳。
+ */
+document.addEventListener('compositionstart', () => {
+	typeAheadComposing = true;
+});
+
+document.addEventListener('compositionend', event => {
+	typeAheadComposing = false;
+	const text = typeof event.data === 'string' ? event.data : '';
+	if (text) {
+		applyTypeAhead(text, { replace: true });
+	}
+});
 
 document.addEventListener('keydown', event => {
 	if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'a') {
@@ -1528,29 +1657,18 @@ document.addEventListener('keydown', event => {
 	if (event.ctrlKey || event.metaKey || event.altKey) {
 		return;
 	}
+	if (typeAheadComposing) {
+		return;
+	}
 	if (event.key.length !== 1 || !/\S/.test(event.key)) {
 		return;
 	}
 
-	typeAheadBuffer += event.key.toLowerCase();
-	if (typeAheadTimer) {
-		clearTimeout(typeAheadTimer);
-	}
-	typeAheadTimer = setTimeout(() => {
-		typeAheadBuffer = '';
-	}, 700);
-
-	const match = visibleRows().find(row => row.name.toLowerCase().startsWith(typeAheadBuffer));
-	if (!match) {
+	const matched = applyTypeAhead(event.key);
+	if (!matched) {
 		return;
 	}
-
 	event.preventDefault();
-	selection = [match.path];
-	anchorPath = match.path;
-	renderTree();
-	renderActions();
-	scrollRowIntoView(match.path);
 });
 
 /* ---------------------------------------------------------------- 列宽：拖拽 + 双击复位 + 记忆 */
@@ -1909,17 +2027,9 @@ Object.defineProperty(window, '__wispkitSelftest', {
 		selectedRowCount: () => rowsElement?.querySelectorAll('.wispkit-subtree-row.is-selected').length ?? 0,
 
 		// —— type-ahead ——
-		typeAhead: text => {
-			typeAheadBuffer = text.toLowerCase();
-			const match = visibleRows().find(row => row.name.toLowerCase().startsWith(typeAheadBuffer));
-			if (match) {
-				selection = [match.path];
-				anchorPath = match.path;
-				renderTree();
-				renderActions();
-			}
-			return match ? match.name : null;
-		},
+		typeAhead: text => applyTypeAhead(text, { replace: true }),
+		/** 键盘路径：按单个字符累积（与 keydown 完全同一条逻辑）。 */
+		typeAheadKey: key => applyTypeAhead(key),
 		typeAheadBuffer: () => typeAheadBuffer,
 
 		// —— 分组 / 图标 / 工具区 ——

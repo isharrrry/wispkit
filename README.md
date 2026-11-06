@@ -7,7 +7,7 @@
 
 **English** | [中文](README.zh-CN.md) | [Español](README.es.md)
 
-> Browsing enhancements for VS Code. It **never patches VS Code or modifies a single file of it** — seven custom editors carry Markdown / Mermaid / images / videos / HTML / XAML / read-only text, plus a custom resource management view in the Activity Bar, an Explorer subtree panel and a 3D graph browser for Markdown and Mermaid.
+> Browsing enhancements for VS Code. It **never patches VS Code or modifies a single file of it** — nine custom editors carry Markdown / Mermaid / images / videos / HTML / XAML / read-only text / Windows shortcuts / executables, plus a custom resource management view in the Activity Bar, an Explorer subtree panel and a 3D graph browser for Markdown and Mermaid.
 
 The extension host is plain TypeScript (`engines.vscode: ^1.71.0`), developed and verified on Windows. The XAML view ships a framework-dependent .NET renderer and needs the .NET 10 Windows Desktop runtime; the other six views have no native dependency.
 
@@ -58,7 +58,7 @@ dotnet build -c Release
 
 ## Core concepts
 
-1. **Custom editors, not patches** — seven `CustomEditorProvider`s compete for file types. Markdown, Mermaid, images, videos, HTML and XAML are `priority: default` (they take over); read-only text is `option` (explicit switch). To go back to the built-in editor: *Reopen Editor With…* or `workbench.editorAssociations`.
+1. **Custom editors, not patches** — nine `CustomEditorProvider`s compete for file types. Markdown, Mermaid, images, videos, HTML and XAML are `priority: default` (they take over); read-only text, Windows shortcuts and executables are `option` (explicit switch). To go back to the built-in editor: *Reopen Editor With…* or `workbench.editorAssociations`.
 2. **The host owns paths, the webview owns interaction** — resource URLs inside a webview are `vscode-webview://` and **cannot be reverse-mapped to a real path**. So the media context menu reports only "index + kind", and the host re-reads the path and source from the Markdown text; images get an extra `alt` cross-check. See [architecture](docs/architecture.md).
 3. **Render through the built-in pipeline** — the extension calls the built-in `markdown.api.render` command, so third-party `markdown.markdownItPlugins` (mermaid, katex) apply automatically, then dispatches `vscode.markdown.updateContent` on `window` so front-end scripts re-render. See [views and interaction](docs/views-and-interaction.md).
 4. **Read-only means "not loaded", not "editing disabled"** — the preview reads only the first N bytes, truncates by line, builds no `TextDocument` and never loads the whole file; a floating "unlock editing" button switches to the native editor. See [configuration](docs/configuration.md).
@@ -79,8 +79,8 @@ dotnet build -c Release
 | What is promised, and how each promise is judged | [Requirements and acceptance criteria](docs/requirements.md) |
 | Quality objectives, test levels and their blind spots, the merge gate, defect grading | [Test and quality constraints](docs/test-and-quality.md) |
 | Layers, module responsibilities, one complete data flow | [Architecture](docs/architecture.md) |
-| Interaction, gestures and message contracts of the seven views, custom resource management, the subtree panel and 3D graph browsing | [Views and interaction](docs/views-and-interaction.md) |
-| Field-level reference for the 14 settings, `Wispkit.json`, tool placeholders | [Configuration](docs/configuration.md) |
+| Interaction, gestures and message contracts of the nine views, custom resource management, the subtree panel and 3D graph browsing | [Views and interaction](docs/views-and-interaction.md) |
+| Field-level reference for the 19 settings, `Wispkit.json`, tool placeholders | [Configuration](docs/configuration.md) |
 | Build, tests, real-machine probes, packaging | [Build and verify](docs/build-and-verify.md) |
 | What it cannot do, what was never verified | [Known limitations](docs/limitations.md) |
 | How it was built step by step, and every pitfall hit | [Development notes](docs/development-notes.zh-CN.md) (中文) |
@@ -109,7 +109,7 @@ The topic table above and the one in the [documentation index](docs/index.md) mu
 | Node / npm | **^22.22.2 / ^24.15.0 / >=26** (what jsdom 30 accepts); CI pins 22.22.2 and runs `npm ci` → lint → compile → test on Windows |
 | TypeScript | 5.7 |
 | esbuild | 0.24 (8 webview bundles; `graph3d` is minified separately) |
-| Tests | mocha + jsdom, **1059 passing**, 62 test files |
+| Tests | mocha + jsdom, **1149 passing**, 70 test files |
 | 3D bundle | `media/dist/graph3d.js`, about 603 KB (three.js included, minified) |
 | Lint | eslint 9, **0 errors** |
 | VSIX | 172 entries / ~1.71 MB (docs, the three READMEs and the screenshots included) |

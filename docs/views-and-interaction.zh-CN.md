@@ -1,10 +1,10 @@
 ---
 type: Guide
 title: 视图与交互
-description: 七个自定义编辑器、自定义资源管理、子树面板与 3D 可视化面板的界面组成、手势、快捷键与消息契约
+description: 九个自定义编辑器、自定义资源管理、子树面板与 3D 可视化面板的界面组成、手势、快捷键与消息契约
 tags: [views, interaction, webview, gestures]
 status: stable
-generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
+generated: { by: dsh/deepseek-flash, at: 2026-11-06T15:50:00+08:00 }
 ---
 
 # 视图与交互
@@ -21,6 +21,8 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
 | HTML 浏览 | `wispkit.html` | 双击 `.html` / `.htm`；*Reopen Editor With…* / `wispkit.openWith` | `default`（接管） |
 | XAML 浏览 | `wispkit.xaml` | 双击 `.xaml` | `default`（接管） |
 | 只读文本 | `wispkit.text` | 全局只读模式开启后自动 | `option`（由 associations 驱动） |
+| Windows 快捷方式 | `wispkit.shellLink` | *Reopen Editor With…* / `wispkit.openWith`；也由 `wispkit.shellLink.openBehavior` 决定是否进入 | `option`（显式切换） |
+| 可执行文件 | `wispkit.executable` | *Reopen Editor With…* / `wispkit.openWith`；也由 `wispkit.executable.openBehavior` 决定是否进入 | `option`（显式切换） |
 | 自定义资源管理 | `wispkit.resourceTree`（TreeView） | 活动栏 Wispkit 图标 → 「自定义资源管理」 | 非编辑器 |
 | 子树面板 | `wispkit.subtree`（webviewPanel） | 资源管理器文件夹行右侧图标 / 命令 | 非编辑器 |
 | Mermaid 浏览 | `wispkit.mermaid` | 双击 `.mmd` / `.mermaid` | `default`（接管） |
@@ -208,6 +210,40 @@ drawio 扩展 1.17.0 已把编辑交给新版 Markdown 编辑器（`markdown.cod
 - 右下角悬浮「解锁编辑」：点了改用原生编辑器打开（可编辑），并在本次会话内放行该文件。
 - 已被 Wispkit 接管的浏览视图（Markdown / HTML / XAML / 图片）**不受只读模式影响** —— 它们本来就是浏览视图，而截断 Markdown 会渲染出残缺结果。
 
+## 快捷方式属性页（`wispkit.shellLink`）
+
+Windows 的 `.lnk` 是一个记录「指向什么」的小二进制文件。这个视图把它解析出来，报告目标路径、工作目录、启动参数、图标位置、卷标、创建机器与标志位，全程不启动任何程序。它注册为 `option` 编辑器，所以双击快捷方式仍然是运行它；属性页通过 *Reopen Editor With…* 或 `wispkit.openWith` 进入。
+
+**打开一个 `.lnk` 会发生什么**由 `wispkit.shellLink.openBehavior` 决定：
+
+| 取值 | 行为 |
+|---|---|
+| `system`（默认） | 交给 Windows —— 与资源管理器里双击完全一致 |
+| `internal` | 在 Wispkit 里打开目标：文件夹进子树面板，文件用对应视图打开 |
+| `ask` | 每次询问走哪一种 |
+
+当行为是 `internal` 且目标看起来是文件夹时，`wispkit.shellLink.folderTarget` 决定落点：`subtree`（默认）为该文件夹打开子树面板，`system` 交给系统文件管理器。
+
+**编辑**（仅 Windows）会改写目标路径、工作目录、启动参数与备注，走的是 Windows 脚本宿主的快捷方式对象：先打开已有快捷方式，只保存用户真正改过的字段，因此图标、热键以及文件里的其它内容都原样保留。把 `wispkit.shellLink.allowEdit` 设为 `false` 会隐藏表单，页面变回只读。
+
+**工作目录。** 启动快捷方式**不会**覆盖它自己记录的起始目录。双击就是这个行为，外面再套一层目录会悄悄改变快捷方式的含义。
+
+## 可执行文件属性页（`wispkit.executable`）
+
+在这里打开一个 `.exe` 会显示它的 PE 结构：格式（`PE32` 或 `PE32+`）、架构、子系统、是否为 DLL、是否带 .NET 程序集、入口点 RVA、映像基址、节表与版本资源。它同样是 `option` 编辑器，所以 `.exe` 双击仍然是运行。
+
+`wispkit.executable.openBehavior` 决定「打开」是什么意思：
+
+| 取值 | 行为 |
+|---|---|
+| `system`（默认） | 启动该可执行文件 |
+| `viewer` | 打开这个属性页 |
+| `ask` | 先询问 |
+
+**工作目录。** 从 Wispkit 启动的可执行文件以**它自己所在目录**作为工作目录（宿主侧用 `Start-Process -WorkingDirectory`），因此那些在自己旁边找文件的程序能找到。快捷方式是相反的一侧——见上一节。
+
+**命令。** 这两类文件的资源管理器行上贡献了六个右键命令，各自出现在适用的类型上：`wispkit.openDefault`（按配置的方式打开）、`wispkit.shellLink.openSystem`、`wispkit.shellLink.openTarget`、`wispkit.shellLink.openViewer`、`wispkit.executable.openSystem` 与 `wispkit.executable.openViewer`。
+
 ## 自定义资源管理（`wispkit.resourceTree`）
 
 ### 入口与界面
@@ -314,6 +350,8 @@ drawio 扩展 1.17.0 已把编辑交给新版 Markdown 编辑器（`markdown.cod
 
 - **懒加载**：展开某一层才读那一层，不一次递归整棵树。
 - **列可配置**：严格按 `wispkit.subtree.columns` 顺序渲染；表头与数据行共用 `--wispkit-col-*` 变量保证对齐。取不到的属性显示 `-` 而不是崩（`atime`、POSIX 权限位恒为 `-`）。
+- **文件图标**：`.lnk` 与 `.exe` 行显示的是**文件自带**的图标 —— Windows 上走的就是资源管理器画图标那套 shell 关联，所以快捷方式看到的是它指向的那个程序的图标，而不是一个通用的链接符号。其余文件回退到用户的图标主题，再回退到内置 sprite；真实图标读不到时用主题图标，绝不用占位图冒充。
+- **按键跳转**：按字母或数字跳到以它开头的第一个条目，再按同一个字符会继续往下并循环回来。字母、数字与中文名都按前缀匹配 —— 中文用的是输入法落字的文本，不涉及拼音表。把 `wispkit.subtree.typeAhead` 设为 `false` 即可关闭。
 - **排序**：点表头按该列排序，纯逻辑在 `src/subtree/sort.ts`。
 
 ### 右侧操作区的三类操作

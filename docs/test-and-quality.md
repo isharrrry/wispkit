@@ -37,7 +37,7 @@ places is how a document starts lying about a command that changed.
 
 | # | Objective | Enforced by |
 | :--- | :--- | :--- |
-| **QO-1** | **Never modify VS Code itself.** No file outside this repository is patched, and no behaviour depends on a patch. | Seven `CustomEditorProvider` registrations and contributed views only; the deliverable is a VSIX that contains nothing but this extension |
+| **QO-1** | **Never modify VS Code itself.** No file outside this repository is patched, and no behaviour depends on a patch. | Nine `CustomEditorProvider` registrations and contributed views only; the deliverable is a VSIX that contains nothing but this extension |
 | **QO-2** | **Strict content security.** Nothing in a webview may load a remote resource or run inline script that is not nonced. | The Strict CSP of every webview page, asserted in the page tests |
 | **QO-3** | **Read-only means not loaded.** The read-only mode reads a byte budget and creates no text document. | The truncation and no-document assertions in the unit tests |
 | **QO-4** | **No third-party runtime dependency.** The extension host layer is plain TypeScript on the bundled Node. | The dependency list in the manifest; the only native prerequisite is the .NET runtime the XAML view needs |
@@ -179,8 +179,8 @@ Recorded **2026-11-06** on Node **v24.16.0**, package version **0.2.12**:
 | Measurement | Command | Result |
 | :--- | :--- | :--- |
 | Lint | `npm run lint` | Exit zero, no findings |
-| Cases | `npm test` | **1059 passing**, 0 failing, 7 s wall clock |
-| Test files | Counted in the source tree | **62 test files** |
+| Cases | `npm test` | **1149 passing**, 0 failing, 7 s wall clock |
+| Test files | Counted in the source tree | **70 test files** |
 | Platform | — | Windows, local development machine |
 | VSIX contents | `npm run package` | **172 files, 1.71 MB** (`wispkit-0.2.12.vsix`) |
 

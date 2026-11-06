@@ -4,7 +4,7 @@ title: Build and verify
 description: Environment, the npm commands, test layout, the 3D bundle and resource-tree end-to-end probes, the real-machine self-test extension, packaging and installation
 tags: [build, test, verification, packaging]
 status: stable
-generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
+generated: { by: dsh/deepseek-flash, at: 2026-11-06T15:50:00+08:00 }
 ---
 
 # Build and verify
@@ -64,7 +64,7 @@ To check the gate's negative path locally: add an unused local variable under `s
 - Framework: **mocha** + **jsdom** (both in devDependencies).
 - Location: `src/test/*.test.ts` → compiled to `out/test/*.test.js`.
 - Character: **pure logic tests, no VS Code instance started**. Everything that touches the `vscode` API is isolated in `*Provider.ts`, while pure logic lives in separate files (that do not import `vscode`) and can therefore be unit-tested directly.
-- Current: **62 test files / 1059 cases** (`npm test` prints `1059 passing`).
+- Current: **70 test files / 1149 cases** (`npm test` prints `1149 passing`).
 
 ### Cases per file
 
@@ -98,7 +98,7 @@ The **3D real-machine end-to-end probes** live in `.selftest/e2e-graph3d/` (igno
 
 ### Resource-tree tests and packaging check
 
-The nine resource-tree test files hold **94 cases** in total (already included in the 1059):
+The nine resource-tree test files hold **94 cases** in total (already included in the 1149):
 
 | Test file | Cases | Covers |
 |---|---:|---|

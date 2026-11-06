@@ -4,14 +4,14 @@ title: Configuración
 description: Referencia a nivel de campo de todos los ajustes, además de Wispkit.json, las herramientas propias y los modos de ejecución
 tags: [configuration, settings, reference]
 status: stable
-generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
+generated: { by: dsh/deepseek-flash, at: 2026-11-06T15:50:00+08:00 }
 ---
 
 # Configuración
 
 [English](configuration.md) | [中文](configuration.zh-CN.md) | **Español**
 
-Todos los ajustes se definen en `contributes.configuration` dentro de `package.json`; hay **14**.
+Todos los ajustes se definen en `contributes.configuration` dentro de `package.json`; hay **19**.
 
 ## Resumen
 
@@ -30,7 +30,12 @@ Todos los ajustes se definen en `contributes.configuration` dentro de `package.j
 | `wispkit.readonly.extensions` | string[] | 61 patrones glob | modo de solo lectura global | Solo ciertos tipos deben ser de solo lectura | Cambiarlo reescribe las asociaciones de inmediato; **no** añadas `.md`/`.html`/`.xaml`/imágenes/vídeos |
 | `wispkit.subtree.columns` | string[] (9 valores de enum) | `name,size,type,mtime,ctime,owner` | panel de subárbol | Quieres examinar un directorio por fecha de modificación o tamaño | Los valores inválidos se filtran, los duplicados se eliminan y un array vacío vuelve a los valores por defecto |
 | `wispkit.subtree.tools` | object[] | `[]` | panel de subárbol | Quieres colgar comandos externos habituales en el lado derecho del panel | Los argumentos no se escapan para el shell; `external` abre de verdad una ventana |
+| `wispkit.subtree.typeAhead` | boolean | `true` | panel de subárbol | Las pulsaciones no deben cambiar la selección | Solo afecta a la lista de subárbol |
 | `wispkit.resourceTree.file` | string | `.WispkitView/resource-tree.json` | gestión de recursos personalizada | Quieres el archivo del árbol en otro sitio, o fijarlo a una raíz concreta en un espacio multitráiz | Se recarga solo; una ruta no resoluble conserva el árbol actual y muestra un diagnóstico |
+| `wispkit.shellLink.openBehavior` | `system` \| `internal` \| `ask` | `system` | acceso directo de Windows (`.lnk`) | Quieres que un acceso directo abra su destino dentro de Wispkit en vez de ejecutarlo | `internal` / `ask` sustituyen el comportamiento de doble clic del acceso directo |
+| `wispkit.shellLink.folderTarget` | `subtree` \| `system` | `subtree` | acceso directo de Windows (`.lnk`) | Quieres que un destino de carpeta vaya al gestor de archivos del sistema en vez del panel de subárbol | Solo se consulta cuando el comportamiento es `internal` |
+| `wispkit.shellLink.allowEdit` | boolean | `true` | acceso directo de Windows (`.lnk`) | Quieres que la página de propiedades siga siendo de solo lectura | Con `false` no se muestra el formulario de edición |
+| `wispkit.executable.openBehavior` | `system` \| `viewer` \| `ask` | `system` | ejecutable (`.exe`) | Quieres que un ejecutable abra su página de propiedades en vez de ejecutarse | `viewer` / `ask` sustituyen el comportamiento de doble clic |
 
 ## Índice de contenido
 
@@ -153,6 +158,14 @@ Un array de herramientas propias, vacío por defecto. Cada elemento tiene esta f
 
 La sustitución es un **reemplazo literal de cadenas** sin escapado de shell — cuando una ruta contiene espacios, añade las comillas tú mismo en la configuración (`"cd '${dir}'"`).
 
+### `wispkit.subtree.typeAhead`
+
+- Tipo `boolean`, por defecto `true`.
+- Salto por teclado en la lista de subárbol, igual que en el Explorador: escribir una letra o un dígito salta a la primera entrada que empieza por él, y pulsar el mismo carácter otra vez sigue bajando (volviendo al principio al llegar al final).
+- Los nombres chinos se comparan con el texto que confirma el método de entrada — no hay tabla de pinyin, así que no se convierte ni se precarga nada.
+- La comparación es un único cotejo de prefijo sobre las filas **visibles** al pulsar una tecla, y el número de filas ya está acotado por nivel, de modo que no hay umbral de tamaño que configurar.
+- Desactivarlo no cambia nada más: el clic, la selección, la ordenación y el arrastrar y soltar siguen igual.
+
 ## Gestión de recursos personalizada
 
 ### `wispkit.resourceTree.file`
@@ -191,6 +204,35 @@ Estructura del archivo (`version` siempre es `1`):
 - Un `group` solo tiene `type` / `id` / `name` / `children` y **no apunta a ninguna carpeta del disco**; un `folder` además tiene `path`.
 - `id` debe ser único dentro del archivo; los ids duplicados / demasiado largos / que no son cadenas se reasignan automáticamente con una advertencia (si falta, se genera uno nuevo sin aviso).
 - Topes: 2000 nodos en total, 200 hijos por nivel, profundidad 12; lo que exceda se trunca al leer con un aviso.
+
+## Accesos directos y ejecutables de Windows
+
+Estos cuatro ajustes gobiernan cómo se abren los accesos directos `.lnk` y los ejecutables `.exe`, y si la página del acceso directo se puede editar. Ambos tipos de archivo tienen su propio editor de prioridad `option`, así que nada de esto cambia el comportamiento de doble clic salvo que se lo pidas.
+
+### `wispkit.shellLink.openBehavior`
+
+- Tipo `string`, enum `system` / `internal` / `ask`, por defecto `system`.
+- `system`: entregar el acceso directo a Windows — lo mismo que hace un doble clic en el Explorador.
+- `internal`: abrir el destino dentro de Wispkit; una carpeta va al panel de subárbol y un archivo se abre en su vista correspondiente.
+- `ask`: preguntar cada vez cuál de las dos.
+
+### `wispkit.shellLink.folderTarget`
+
+- Tipo `string`, enum `subtree` / `system`, por defecto `subtree`.
+- Solo se consulta cuando `openBehavior` es `internal` **y** el destino parece una carpeta.
+- `subtree`: abrir la carpeta en el panel de subárbol; `system`: entregarla al gestor de archivos del sistema.
+
+### `wispkit.shellLink.allowEdit`
+
+- Tipo `boolean`, por defecto `true`.
+- Si la página del acceso directo ofrece el formulario de edición. `false` deja la página legible pero no editable.
+
+### `wispkit.executable.openBehavior`
+
+- Tipo `string`, enum `system` / `viewer` / `ask`, por defecto `system`.
+- `system`: iniciar el ejecutable; `viewer`: abrir la página de propiedades PE; `ask`: preguntar antes.
+
+**Contrato del directorio de trabajo**, porque difiere deliberadamente entre los dos tipos: un ejecutable iniciado desde Wispkit se fija a **su propio directorio**, mientras que un acceso directo se inicia con el directorio de inicio que tiene registrado, sin tocarlo.
 
 ## `configurationDefaults`: mermaid se puede ampliar sin configurar nada
 
@@ -259,6 +301,12 @@ El icono «Mostrar» a la izquierda de una fila de carpeta del Explorador lee es
   ],
 
   // Gestión de recursos personalizada
-  "wispkit.resourceTree.file": "${workspaceFolder}/.WispkitView/resource-tree.json"
+  "wispkit.resourceTree.file": "${workspaceFolder}/.WispkitView/resource-tree.json",
+
+  // Accesos directos y ejecutables de Windows
+  "wispkit.shellLink.openBehavior": "ask",
+  "wispkit.shellLink.folderTarget": "subtree",
+  "wispkit.shellLink.allowEdit": true,
+  "wispkit.executable.openBehavior": "viewer"
 }
 ```

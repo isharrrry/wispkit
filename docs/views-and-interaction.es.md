@@ -1,10 +1,10 @@
 ---
 type: Guide
 title: Vistas e interacción
-description: Composición de la interfaz, gestos, atajos y contratos de mensajes de los siete editores personalizados, la gestión de recursos personalizada, el panel de subárbol y el panel de visualización 3D
+description: Composición de la interfaz, gestos, atajos y contratos de mensajes de los nueve editores personalizados, la gestión de recursos personalizada, el panel de subárbol y el panel de visualización 3D
 tags: [views, interaction, webview, gestures]
 status: stable
-generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
+generated: { by: dsh/deepseek-flash, at: 2026-11-06T15:50:00+08:00 }
 ---
 
 # Vistas e interacción
@@ -21,6 +21,8 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
 | Navegación HTML | `wispkit.html` | doble clic en `.html` / `.htm`; *Reopen Editor With…* / `wispkit.openWith` | `default` (toma el control) |
 | Navegación XAML | `wispkit.xaml` | doble clic en `.xaml` | `default` (toma el control) |
 | Texto de solo lectura | `wispkit.text` | automático al activar el modo de solo lectura global | `option` (gobernado por asociaciones) |
+| Atajo de Windows | `wispkit.shellLink` | *Reabrir editor con…* / `wispkit.openWith`; también lo abre `wispkit.shellLink.openBehavior` | `option` (cambio explícito) |
+| Ejecutable | `wispkit.executable` | *Reabrir editor con…* / `wispkit.openWith`; también lo abre `wispkit.executable.openBehavior` | `option` (cambio explícito) |
 | Gestión de recursos personalizada | `wispkit.resourceTree` (TreeView) | icono de Wispkit en la barra de actividades → «Gestión de recursos personalizada» | no es un editor |
 | Panel de subárbol | `wispkit.subtree` (webviewPanel) | icono a la derecha de una fila de carpeta del Explorador / comando | no es un editor |
 | Navegación Mermaid | `wispkit.mermaid` | doble clic en `.mmd` / `.mermaid` | `default` (toma el control) |
@@ -209,6 +211,40 @@ Contrato de mensajes: webview → host `wispkit.mmd.refresh` / `wispkit.mmd.open
 - Un botón flotante de «desbloquear edición» en la esquina inferior derecha abre el archivo en el editor nativo (editable) y deja pasar ese archivo durante el resto de la sesión.
 - Las vistas de navegación que Wispkit ya posee (Markdown / HTML / XAML / imágenes) **no se ven afectadas por el modo de solo lectura** — ya son vistas de navegación, y truncar Markdown produciría un render roto.
 
+## Vista de acceso directo (`wispkit.shellLink`)
+
+Un archivo `.lnk` de Windows es un binario pequeño que registra «a qué apunta» un acceso directo. Esta vista lo analiza y muestra la ruta de destino, el directorio de trabajo, los argumentos de inicio, la ubicación del icono, la etiqueta del volumen, la máquina que lo creó y los bits de banderas, sin lanzar nada. Está registrada como editor `option`, así que un doble clic en un acceso directo sigue ejecutándolo; la página de propiedades se alcanza con *Reabrir editor con…* o `wispkit.openWith`.
+
+**Qué ocurre al abrir un `.lnk`** lo decide `wispkit.shellLink.openBehavior`:
+
+| Valor | Comportamiento |
+|---|---|
+| `system` (predeterminado) | entregar el acceso directo a Windows — lo mismo que hace un doble clic en el Explorador |
+| `internal` | abrir el destino dentro de Wispkit: una carpeta va al panel de subárbol, un archivo se abre en su vista correspondiente |
+| `ask` | preguntar cada vez cuál de las dos opciones |
+
+Cuando el comportamiento es `internal` y el destino parece una carpeta, `wispkit.shellLink.folderTarget` decide dónde aterriza: `subtree` (predeterminado) abre el panel de subárbol para esa carpeta, `system` lo entrega al gestor de archivos del sistema.
+
+**Edición** (solo Windows) reescribe la ruta de destino, el directorio de trabajo, los argumentos y el comentario a través del objeto de accesos directos del host de scripts de Windows: primero se abre el acceso directo existente y solo se guardan los campos que el usuario cambió de verdad, de modo que el icono, la tecla de acceso rápido y todo lo demás del archivo quedan como estaban. Poner `wispkit.shellLink.allowEdit` en `false` oculta el formulario y deja la página de solo lectura.
+
+**Directorio de trabajo.** Iniciar un acceso directo **no** sobrescribe el directorio de inicio guardado dentro de él. Eso es lo que hace un doble clic, y envolver el lanzamiento en otro directorio cambiaría en silencio el significado del acceso directo.
+
+## Vista de ejecutable (`wispkit.executable`)
+
+Un archivo `.exe` abierto aquí muestra su estructura PE: el formato (`PE32` o `PE32+`), la arquitectura, el subsistema, si la imagen es una DLL, si lleva un ensamblado .NET, el RVA del punto de entrada, la base de imagen, la tabla de secciones y los recursos de versión. También es un editor `option`, así que los `.exe` siguen lanzándose con doble clic.
+
+`wispkit.executable.openBehavior` decide qué significa «abrir»:
+
+| Valor | Comportamiento |
+|---|---|
+| `system` (predeterminado) | iniciar el ejecutable |
+| `viewer` | abrir esta página de propiedades |
+| `ask` | preguntar primero |
+
+**Directorio de trabajo.** Un ejecutable iniciado desde Wispkit se ejecuta con **su propio directorio** como directorio de trabajo (`Start-Process -WorkingDirectory` en el host), de modo que un programa que busca archivos junto a sí mismo los encuentra. El acceso directo es el caso contrario — véase la sección anterior.
+
+**Comandos.** Se aportan seis comandos de menú contextual en la fila del Explorador de estos dos tipos de archivo, cada uno en el tipo al que se aplica: `wispkit.openDefault` (abrir de la forma configurada), `wispkit.shellLink.openSystem`, `wispkit.shellLink.openTarget`, `wispkit.shellLink.openViewer`, `wispkit.executable.openSystem` y `wispkit.executable.openViewer`.
+
 ## Gestión de recursos personalizada (`wispkit.resourceTree`)
 
 ### Entrada e interfaz
@@ -303,6 +339,8 @@ Cada **fila de carpeta** del Explorador tiene dos iconos a su derecha: «Mostrar
 
 - **Carga diferida**: un nivel solo se lee cuando se expande; nunca se recorre todo el árbol de una vez.
 - **Columnas configurables**: se renderizan estrictamente en el orden de `wispkit.subtree.columns`; la cabecera y las filas de datos comparten las variables `--wispkit-col-*` para mantenerse alineadas. Las propiedades no disponibles muestran `-` en lugar de fallar (`atime` y los bits de permiso POSIX son siempre `-`).
+- **Iconos de archivo**: las filas `.lnk` y `.exe` muestran el icono **incrustado en el propio archivo** — en Windows mediante la misma asociación de shell con la que el Explorador dibuja iconos, de modo que un acceso directo muestra el icono del programa al que apunta y no un símbolo de enlace genérico. Todo lo demás recurre al tema de iconos del usuario y luego a los sprites integrados; cuando el icono real no puede leerse se usa el del tema, nunca un marcador de posición.
+- **Salto por teclado**: pulsa una letra o un dígito para saltar a la primera entrada que empiece por él; pulsar el mismo carácter otra vez recorre la lista hacia abajo y vuelve al principio. Letras, dígitos y nombres chinos se comparan por prefijo simple — en chino se usa el texto que confirma el método de entrada y no hay tabla de pinyin. Pon `wispkit.subtree.typeAhead` en `false` para desactivarlo.
 - **Ordenación**: pulsa una cabecera para ordenar por esa columna; la lógica pura vive en `src/subtree/sort.ts`.
 
 ### Los tres tipos de acciones del área de acciones

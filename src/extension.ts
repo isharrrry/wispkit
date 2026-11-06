@@ -14,6 +14,8 @@ import { createReadOnlyMode } from './readonly/state';
 import { registerGraph3d } from './graph3dProvider';
 import { registerResourceTree } from './resourceTreeProvider';
 import { registerStorageView } from './storageProvider';
+import { BinaryEditorProvider, EXECUTABLE_VIEW_TYPE, SHELL_LINK_VIEW_TYPE } from './binaryView/provider';
+import { registerBinaryCommands } from './binaryView/commands';
 
 export function activate(context: vscode.ExtensionContext): void {
 	const markdownProvider = new MarkdownEditorProvider(context);
@@ -34,6 +36,9 @@ export function activate(context: vscode.ExtensionContext): void {
 		registerGraph3d(context),
 		registerResourceTree(context),
 		registerStorageView(),
+		BinaryEditorProvider.register(context, SHELL_LINK_VIEW_TYPE, 'lnk'),
+		BinaryEditorProvider.register(context, EXECUTABLE_VIEW_TYPE, 'pe'),
+		registerBinaryCommands(context),
 		vscode.commands.registerCommand('wispkit.openWith', async () => {
 			const editor = vscode.window.activeTextEditor;
 			if (!editor) {

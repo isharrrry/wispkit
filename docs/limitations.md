@@ -4,7 +4,7 @@ title: Known limitations and unverified items
 description: What Wispkit cannot do, why each limit exists (including 3D diagram coverage, ASCII tree boundaries, large-graph caps and the resource tree's disk / concurrency / multi-root boundaries), and what has never been verified on a real machine
 tags: [limitations, unverified, honesty]
 status: stable
-generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
+generated: { by: dsh/deepseek-flash, at: 2026-11-06T15:50:00+08:00 }
 ---
 
 # Known limitations and unverified items
@@ -203,6 +203,48 @@ This page lists only "cannot do" and "not verified". **Unverified does not mean 
 - **Workaround**: open it in the system player, or transcode it to MP4 (H.264 / AAC).
 - **Verified**: on real VS Code 1.137.0 / Electron 42: WebP, AVIF and SVG decode; the HEIC fallback panel appears; MP4 playback advances `currentTime`; a corrupt MKV shows the error-code-4 fallback (`.selftest/e2e-media/probe-media.mjs`, 17/17).
 
+### 28. A shortcut's folder target lands only in the subtree panel
+
+- **Symptom**: with `wispkit.shellLink.openBehavior` set to `internal`, a shortcut pointing at a folder opens the subtree panel; there is no way to open that same folder in the compare browser.
+- **Cause**: the compare browser does not accept an initial directory, so the subtree panel is the only internal landing point.
+- **Workaround**: open the compare browser and navigate to the folder yourself, or set the behaviour back to `system`.
+
+### 29. `.dll` files have no property page
+
+- **Symptom**: a `.dll` offers no "open as executable" route; only `.exe` is claimed.
+- **Cause**: only `*.exe` is registered as a selector. The PE parser is valid for DLLs and reports the DLL flag, but no selector claims the extension.
+- **Workaround**: use an external PE viewer, or copy the file with an `.exe` extension.
+
+### 30. Shortcut editing is Windows-only
+
+- **Symptom**: on macOS and Linux the shortcut page shows the parsed fields but no edit form.
+- **Cause**: writing a `.lnk` goes through the Windows scripting host's shortcut object; the extension ships no cross-platform equivalent.
+- **Workaround**: edit the shortcut on Windows.
+
+### 31. A shortcut that stores only a target IDList cannot be opened internally
+
+- **Symptom**: with the behaviour set to `internal`, such a shortcut falls back to handing the file to the system instead of opening the target.
+- **Cause**: the file records a shell item list rather than a readable absolute path, so there is no path that could be opened safely.
+- **Workaround**: use the system route.
+
+### 32. Files above the 256 MB cap are refused
+
+- **Symptom**: opening a shortcut or an executable larger than the cap reports the size and does not parse it.
+- **Cause**: parsing an unbounded file in the extension host would stall the UI.
+- **Workaround**: use an external PE or shortcut tool.
+
+### 33. Shortcut parsing is cross-platform, but opening and editing are not
+
+- **Symptom**: on macOS and Linux the `.lnk` fields are readable, while the system open route and the edit form are not available.
+- **Cause**: parsing is byte-level and platform-independent; opening and writing are platform-bound.
+- **Workaround**: open the shortcut through the system on those platforms.
+
+### 34. Real file icons are Windows-only
+
+- **Symptom**: on macOS and Linux, `.lnk` and `.exe` rows show the icon theme's generic icon instead of the one embedded in the file.
+- **Cause**: the icon is taken through the Windows shell association (`ExtractAssociatedIcon`); other platforms have no equivalent, and decoding PE resources by hand just to draw a 16 px icon is not worth the code.
+- **Workaround**: rely on the icon theme there — parsing, opening and everything else still works.
+
 ## 2. Unverified items
 
 The following have **not been verified in a real VS Code**. That does not mean they cannot work — there is simply no evidence.
@@ -225,6 +267,7 @@ The following have **not been verified in a real VS Code**. That does not mean t
 | 14 | **stat performance on network drives / very large trees** | the per-row synchronous `fs.statSync` is gone and the local 2000-node / 1000-subdirectory benchmark passes (see item 23), but network shares, high latency and provider-specific `workspace.fs` implementations are still untested; external changes can also lag up to the 30 s TTL | point the tree at a network share or a directory with thousands of subdirectories and record first-expand / refresh times and UI responsiveness |
 | 15 | **Conflict timing of external concurrent edits** — ✅ verified (2026-10-26, VS Code 1.137.0, Windows 11) | constructed with a real VS Code text-editor buffer and an external writer: external unsaved buffer + extension write → external save → Refresh loses the extension write (VS Code asks overwrite / compare first); extension write → external overwrite → Refresh reads the external version; invalid JSON + Refresh keeps the tree, leaves the file untouched and does not crash; force-killing the extension host between two writes leaves the file intact with no `.tmp-*`. A pre-write canonical comparison with a non-modal Overwrite / Cancel warning was added; Cancel keeps both sides, Overwrite is still last-writer-wins, and the check has a TOCTOU window. Evidence: `.selftest/e2e-resource-tree-concurrency/probe-concurrency.mjs` (17/17), screenshots `cc-01…cc-11` | closed — the remaining mid-write kill window is tracked in item 23 |
 | 16 | **Display of symlinks / permission-denied paths** — ✅ verified (2026-10-26, VS Code 1.137.0, Windows 11) | directory symlinks, file symlinks, broken links (directory / file), a read-only directory and an ACL-denied directory were constructed: a directory symlink is treated as a directory, a file symlink shows `⚠ Not a folder`, broken links now show `⚠ Link broken` with an explicit click message; the read-only directory is unchanged; the ACL-denied directory still stats successfully on local NTFS, so the tree shows it as an ordinary folder (not confused with "missing", but no warning). EACCES could not be reproduced on this machine because it ran as Administrator with `SeBackupPrivilege`. Evidence: `.selftest/e2e-resource-tree-symlink/probe-symlink-{before,after}.mjs` and `sym-*.png` | closed, no further verification needed |
+| 17 | **The shortcut and executable property pages in a real VS Code window** | the parse, the open policy, the edit rewrite and the PE reader all have unit cases, but no page has been opened in a running window, and the editable route calls the Windows scripting host, which no unit test can execute | open a real `.lnk` and a real `.exe` in this view, change one field and save, then reopen the shortcut and confirm the change landed and the icon and hotkey survived |
 
 > Item 13's local check was completed on 2026-10-26; probes and screenshots are under `.selftest/e2e-resource-tree-remote/` (`probe-remote.mjs`, `probe-ui-only.mjs`, `rem-01…rem-03`). None of the four named providers is available on this machine, so the item **stays unverified**; only evidence from the `file` provider over an SMB loopback share was obtained, and the share and VS Code run on the same Windows host, so it does not represent a cross-host / Linux file system. Side observation: with the target locked, `workspace.fs.rename(overwrite:true)` failed with `EBUSY ... unlink '<target>'`, i.e. the path performs an unlink of the target; if the unlink succeeds and the following rename fails (e.g. the process is killed), the old file may already be gone and only the `.tmp-*` remains. There is still no copy+fsync fallback.
 

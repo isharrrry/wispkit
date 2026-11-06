@@ -215,7 +215,7 @@ La gestión de recursos sigue el mismo modelo de interacción que el árbol de e
 
 **¿Por qué el modo de solo lectura no crea un `TextDocument`?** El objetivo es precisamente «ahorrar el coste de carga». Solo `CustomEditorProvider` + leer la cabecera del archivo directamente evita cargar todo el archivo en memoria; el precio es perder el coloreado de sintaxis oficial, por eso `readonly/highlight.ts` implementa un resaltador genérico propio.
 
-**¿Por qué mantener la lógica pura en archivos que no importan `vscode`?** Para poder probarla. `src` tiene 30.345 líneas de TypeScript (12.635 de ellas pruebas), 62 archivos de prueba y 1059 casos; una buena parte de esos casos se ejecuta en Node sin arrancar VS Code — lo que solo es posible cuando el análisis, el formato, la ordenación, el resaltado y el diseño están desacoplados de `vscode`.
+**¿Por qué mantener la lógica pura en archivos que no importan `vscode`?** Para poder probarla. `src` tiene 30.345 líneas de TypeScript (12.635 de ellas pruebas), 70 archivos de prueba y 1149 casos; una buena parte de esos casos se ejecuta en Node sin arrancar VS Code — lo que solo es posible cuando el análisis, el formato, la ordenación, el resaltado y el diseño están desacoplados de `vscode`.
 
 **¿Por qué la vista 3D no reutiliza el renderizador de Mermaid?** Mermaid produce SVG en 2D, que no se puede convertir directamente en una escena 3D rotable; la vista 3D necesita la topología (quién se conecta con quién), no el estilo. Wispkit analiza solo la topología y la distribuye por su cuenta, cambiando la paridad visual con los temas de Mermaid por funcionamiento sin conexión, cero CDN y un diseño testeable (véase [limitaciones conocidas](limitations.es.md#15-la-visualización-3d-analiza-la-topología-no-reproduce-el-render-de-mermaid)).
 
@@ -225,5 +225,5 @@ La gestión de recursos sigue el mismo modelo de interacción que el árbol de e
 |---|---|
 | Host de la extensión y lógica pura | `src` suma 22.816 líneas de TypeScript (13.093 sin contar las pruebas) |
 | Front-end | 22 archivos escritos a mano en `media` (incluidos 6 componentes reutilizados en `shared/`) + 7 salidas de esbuild |
-| Pruebas | 62 archivos de prueba / 1059 casos |
+| Pruebas | 70 archivos de prueba / 1149 casos |
 | Herramienta nativa que viaja con la extensión | `tools/xaml-render` (.NET, dependiente del framework) |

@@ -37,7 +37,7 @@ dos lugares es cómo un documento empieza a mentir sobre un comando que cambió.
 
 | # | Objetivo | Se impone mediante |
 | :--- | :--- | :--- |
-| **QO-1** | **Nunca modificar VS Code.** No se parchea ningún archivo fuera de este repositorio y ningún comportamiento depende de un parche. | Solo siete registros de `CustomEditorProvider` y vistas aportadas; el entregable es un VSIX que no contiene nada más que esta extensión |
+| **QO-1** | **Nunca modificar VS Code.** No se parchea ningún archivo fuera de este repositorio y ningún comportamiento depende de un parche. | Solo nueve registros de `CustomEditorProvider` y vistas aportadas; el entregable es un VSIX que no contiene nada más que esta extensión |
 | **QO-2** | **Seguridad de contenido estricta.** Nada dentro de un webview puede cargar un recurso remoto ni ejecutar script en línea sin nonce. | La CSP estricta de cada página webview, verificada en las pruebas de página |
 | **QO-3** | **Solo lectura significa no cargado.** El modo de solo lectura lee un presupuesto de bytes y no crea ningún documento de texto. | Las aserciones de truncamiento y de «no se crea documento» en las pruebas unitarias |
 | **QO-4** | **Sin dependencias de ejecución de terceros.** La capa del host de extensión es TypeScript puro sobre el Node incluido. | La lista de dependencias del manifiesto; el único requisito nativo es el tiempo de ejecución de .NET que necesita la vista XAML |
@@ -180,8 +180,8 @@ Registrado el **2026-11-06** con Node **v24.16.0**, versión del paquete **0.2.1
 | Medición | Comando | Resultado |
 | :--- | :--- | :--- |
 | Lint | `npm run lint` | Sale con cero, sin hallazgos |
-| Casos | `npm test` | **1059 passing**, 0 fallos, 7 s de reloj |
-| Archivos de prueba | Contados en el árbol de fuentes | **62 archivos de prueba** |
+| Casos | `npm test` | **1149 passing**, 0 fallos, 7 s de reloj |
+| Archivos de prueba | Contados en el árbol de fuentes | **70 archivos de prueba** |
 | Plataforma | — | Windows, máquina local de desarrollo |
 | Contenido del VSIX | `npm run package` | **172 archivos, 1.71 MB** (`wispkit-0.2.12.vsix`) |
 

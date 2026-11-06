@@ -1,10 +1,10 @@
 ---
 type: Guide
 title: Views and interaction
-description: UI composition, gestures, shortcuts and message contracts of the seven custom editors, the custom resource tree, the subtree panel and the 3D visualization panel
+description: UI composition, gestures, shortcuts and message contracts of the nine custom editors, the custom resource tree, the subtree panel and the 3D visualization panel
 tags: [views, interaction, webview, gestures]
 status: stable
-generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
+generated: { by: dsh/deepseek-flash, at: 2026-11-06T15:50:00+08:00 }
 ---
 
 # Views and interaction
@@ -21,6 +21,8 @@ generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
 | HTML browsing | `wispkit.html` | double-click `.html` / `.htm`; *Reopen Editor With…* / `wispkit.openWith` | `default` (takes over) |
 | XAML browsing | `wispkit.xaml` | double-click `.xaml` | `default` (takes over) |
 | Read-only text | `wispkit.text` | automatic once global read-only mode is on | `option` (driven by associations) |
+| Windows shortcut | `wispkit.shellLink` | *Reopen Editor With…* / `wispkit.openWith`; also opened by `wispkit.shellLink.openBehavior` | `option` (explicit switch) |
+| Executable | `wispkit.executable` | *Reopen Editor With…* / `wispkit.openWith`; also opened by `wispkit.executable.openBehavior` | `option` (explicit switch) |
 | Custom resource management | `wispkit.resourceTree` (TreeView) | Wispkit icon in the Activity Bar → "Custom resource management" | not an editor |
 | Subtree panel | `wispkit.subtree` (webviewPanel) | icon on the right of an Explorer folder row / command | not an editor |
 | Mermaid browsing | `wispkit.mermaid` | double-click `.mmd` / `.mermaid` | `default` (takes over) |
@@ -210,6 +212,40 @@ Message contract: webview → host `wispkit.mmd.refresh` / `wispkit.mmd.openSour
 - A floating "unlock editing" button at the bottom right opens the file in the native editor (editable) and lets that file through for the rest of the session.
 - The browsing views Wispkit already owns (Markdown / HTML / XAML / images) **are not affected by read-only mode** — they are browsing views already, and truncating Markdown would render a broken result.
 
+## Shell shortcut view (`wispkit.shellLink`)
+
+A Windows `.lnk` file is a small binary that records what a shortcut points at. This view parses it and reports the target path, the working directory, the start-in arguments, the icon location, the volume label, the machine that created it and the flag bits — without launching anything. It is registered as an `option` editor, so double-clicking a shortcut still runs it; the property page is reached through *Reopen Editor With…* or `wispkit.openWith`.
+
+**What opening a `.lnk` does** is decided by `wispkit.shellLink.openBehavior`:
+
+| Value | Behaviour |
+|---|---|
+| `system` (default) | hand the shortcut to Windows — the same thing a double-click in Explorer does |
+| `internal` | open the target inside Wispkit: a folder goes to the subtree panel, a file opens in its matching view |
+| `ask` | ask every time which of the two to do |
+
+When the behaviour is `internal` and the target looks like a folder, `wispkit.shellLink.folderTarget` decides where it lands: `subtree` (default) opens the subtree panel for that folder, `system` hands it to the system file manager.
+
+**Editing** (Windows only) rewrites the target path, the working directory, the arguments and the comment through the Windows scripting host's shortcut object: the existing shortcut is loaded first and only the fields the user actually changed are saved, so the icon, the hotkey and everything else in the file stay as they were. Setting `wispkit.shellLink.allowEdit` to `false` hides the form and leaves the page read-only.
+
+**Working directory.** Starting a shortcut does **not** override the start-in directory stored inside it. That is what a double-click does, and wrapping the launch in another directory would quietly change what the shortcut means.
+
+## Executable view (`wispkit.executable`)
+
+A `.exe` file opened here shows its PE structure: the format (`PE32` or `PE32+`), the architecture, the subsystem, whether the image is a DLL, whether it carries a .NET assembly, the entry-point RVA, the image base, the section table and the version resources. It is an `option` editor as well, so `.exe` files still launch on double-click.
+
+`wispkit.executable.openBehavior` decides what "open" means:
+
+| Value | Behaviour |
+|---|---|
+| `system` (default) | start the executable |
+| `viewer` | open this property page |
+| `ask` | ask first |
+
+**Working directory.** An executable started from Wispkit runs with **its own directory** as the working directory (`Start-Process -WorkingDirectory` on the host side), so a program that looks for files next to itself finds them. A shortcut is the opposite case — see the previous section.
+
+**Commands.** Six context-menu commands are contributed on the Explorer row of these two file types, each on the kind it applies to: `wispkit.openDefault` (open the configured way), `wispkit.shellLink.openSystem`, `wispkit.shellLink.openTarget`, `wispkit.shellLink.openViewer`, `wispkit.executable.openSystem` and `wispkit.executable.openViewer`.
+
 ## Custom resource management (`wispkit.resourceTree`)
 
 ### Entry and UI
@@ -305,6 +341,8 @@ Each **folder row** in the Explorer has two icons on its right: "Show" on the le
 
 - **Lazy loading**: a level is read only when it is expanded; the whole tree is never walked at once.
 - **Configurable columns**: rendered strictly in the order of `wispkit.subtree.columns`; header and data rows share the `--wispkit-col-*` variables so they stay aligned. Unavailable properties show `-` instead of crashing (`atime` and POSIX permission bits are always `-`).
+- **File icons**: `.lnk` and `.exe` rows show the icon embedded in the file itself — on Windows through the same shell association Explorer draws icons with, so a shortcut shows the icon of the program it points at rather than a generic link glyph. Everything else falls back to the user's icon theme, then to the built-in sprites; when the real icon cannot be read the theme icon is used, never a placeholder.
+- **Type-ahead**: press a letter or a digit to jump to the first entry starting with it; pressing the same character again walks down the list and wraps around. Latin letters, digits and Chinese names all match by plain prefix — Chinese uses the text the input method commits, and no pinyin table is involved. Set `wispkit.subtree.typeAhead` to `false` to turn it off.
 - **Sorting**: click a header to sort by that column; the pure logic lives in `src/subtree/sort.ts`.
 
 ### The three kinds of actions in the action area

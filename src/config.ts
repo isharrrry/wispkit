@@ -2,6 +2,17 @@ import * as vscode from 'vscode';
 import type { ImageViewConfig } from './image/page';
 import type { MarkdownTypography, MarkdownViewConfig } from './markdown/page';
 import type { XamlViewConfig } from './xaml/page';
+import type { ExecutableOpenBehavior, FolderTargetAction, ShellLinkOpenBehavior } from './shellLink/policy';
+
+function enumSetting<T extends string>(
+	config: vscode.WorkspaceConfiguration,
+	key: string,
+	fallback: T,
+	allowed: readonly T[],
+): T {
+	const value = config.get<string>(key);
+	return typeof value === 'string' && (allowed as readonly string[]).includes(value) ? value as T : fallback;
+}
 
 function numberSetting(config: vscode.WorkspaceConfiguration, key: string, fallback: number, minimum: number): number {
 	const value = config.get<number>(key);
@@ -60,5 +71,23 @@ export function readXamlViewConfig(): XamlViewConfig {
 		dragButton: dragButtonSetting(config),
 		codeVisible: config.get<boolean>('xaml.codeVisible', true),
 		codeWidth: numberSetting(config, 'xaml.codeWidth', 460, 120),
+	};
+}
+
+export interface ShellLinkViewConfig {
+	readonly openBehavior: ShellLinkOpenBehavior;
+	readonly folderTarget: FolderTargetAction;
+	readonly allowEdit: boolean;
+	readonly executableOpenBehavior: ExecutableOpenBehavior;
+}
+
+/** `.lnk` / `.exe` 的默认响应方式。默认一律交给系统（与资源管理器双击一致）。 */
+export function readShellLinkViewConfig(): ShellLinkViewConfig {
+	const config = vscode.workspace.getConfiguration('wispkit');
+	return {
+		openBehavior: enumSetting<ShellLinkOpenBehavior>(config, 'shellLink.openBehavior', 'system', ['system', 'internal', 'ask']),
+		folderTarget: enumSetting<FolderTargetAction>(config, 'shellLink.folderTarget', 'subtree', ['subtree', 'system']),
+		allowEdit: config.get<boolean>('shellLink.allowEdit', true),
+		executableOpenBehavior: enumSetting<ExecutableOpenBehavior>(config, 'executable.openBehavior', 'system', ['system', 'viewer', 'ask']),
 	};
 }

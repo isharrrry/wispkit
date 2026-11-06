@@ -4,14 +4,14 @@ title: Configuration
 description: Field-level reference for every setting, plus Wispkit.json, custom tools and execution modes
 tags: [configuration, settings, reference]
 status: stable
-generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
+generated: { by: dsh/deepseek-flash, at: 2026-11-06T15:50:00+08:00 }
 ---
 
 # Configuration
 
 **English** | [中文](configuration.zh-CN.md) | [Español](configuration.es.md)
 
-Every setting is defined under `contributes.configuration` in `package.json`; there are **14** of them.
+Every setting is defined under `contributes.configuration` in `package.json`; there are **19** of them.
 
 ## Overview
 
@@ -30,7 +30,12 @@ Every setting is defined under `contributes.configuration` in `package.json`; th
 | `wispkit.readonly.extensions` | string[] | 61 glob patterns | global read-only mode | only specific types should be read-only | any change rewrites the associations; **do not** add `.md`/`.html`/`.xaml`/images/videos |
 | `wispkit.subtree.columns` | string[] (9 enum values) | `name,size,type,mtime,ctime,owner` | subtree panel | you want to review a directory by modified time or size | invalid values filtered, duplicates removed, empty falls back to the default |
 | `wispkit.subtree.tools` | object[] | `[]` | subtree panel | you want to hang frequently used external commands on the right of the panel | arguments are not shell-escaped; `external` really opens a window |
+| `wispkit.subtree.typeAhead` | boolean | `true` | subtree panel | keystrokes should not change the selection | affects the subtree list only |
 | `wispkit.resourceTree.file` | string | `.WispkitView/resource-tree.json` | custom resource management | you want the tree file elsewhere, or pinned to a specific root in a multi-root workspace | reloads automatically; an unresolvable path keeps the current tree and shows a diagnostic |
+| `wispkit.shellLink.openBehavior` | `system` \| `internal` \| `ask` | `system` | Windows shortcut (`.lnk`) | a shortcut should open its target inside Wispkit instead of running it | `internal` / `ask` replace the double-click behaviour for shortcuts |
+| `wispkit.shellLink.folderTarget` | `subtree` \| `system` | `subtree` | Windows shortcut (`.lnk`) | a folder target should go to the system file manager instead of the subtree panel | only consulted when the behaviour is `internal` |
+| `wispkit.shellLink.allowEdit` | boolean | `true` | Windows shortcut (`.lnk`) | the property page should stay read-only | when `false` the edit form is not shown |
+| `wispkit.executable.openBehavior` | `system` \| `viewer` \| `ask` | `system` | Executable (`.exe`) | an executable should open its property page instead of running | `viewer` / `ask` replace the double-click behaviour |
 
 ## Table of contents
 
@@ -153,6 +158,14 @@ An array of custom tools, empty by default. Each item is shaped like this:
 
 Substitution is **plain string replacement** with no shell escaping — when a path contains spaces, add the quotes yourself in the configuration (`"cd '${dir}'"`).
 
+### `wispkit.subtree.typeAhead`
+
+- Type `boolean`, default `true`.
+- Type-ahead in the subtree list, the way Explorer does it: typing a letter or a digit jumps to the first entry starting with it, and pressing the same character again moves further down (wrapping around at the end).
+- Chinese names match the text the input method commits — there is no pinyin table, so nothing is converted and nothing is precomputed.
+- The match is one prefix comparison over the **visible** rows whenever a key is pressed, and the row count is already capped per level, so there is no size threshold to configure.
+- Turning it off changes nothing else: clicking, selection, sorting and drag and drop are unaffected.
+
 ## Custom resource management
 
 ### `wispkit.resourceTree.file`
@@ -191,6 +204,35 @@ File structure (`version` is always `1`):
 - A `group` has only `type` / `id` / `name` / `children` and **points at no disk folder**; a `folder` additionally has `path`.
 - `id` must be unique within the file; duplicate / over-long / non-string ids are reassigned automatically with a warning (a missing id is generated silently).
 - Caps: 2000 nodes in total, 200 children per level, depth 12; anything beyond is truncated on read with a notice.
+
+## Windows shortcut and executable
+
+These four settings govern how `.lnk` shortcuts and `.exe` executables are opened, and whether the shortcut page can be edited. Both file kinds get their own `option`-priority editor, so nothing here changes the default double-click behaviour unless you ask it to.
+
+### `wispkit.shellLink.openBehavior`
+
+- Type `string`, enum `system` / `internal` / `ask`, default `system`.
+- `system`: hand the shortcut to Windows — the same thing a double-click in Explorer does.
+- `internal`: open the target inside Wispkit; a folder goes to the subtree panel, a file opens in its matching view.
+- `ask`: ask every time which of the two to do.
+
+### `wispkit.shellLink.folderTarget`
+
+- Type `string`, enum `subtree` / `system`, default `subtree`.
+- Only consulted when `openBehavior` is `internal` **and** the target looks like a folder.
+- `subtree`: open the folder in the subtree panel; `system`: hand it to the system file manager.
+
+### `wispkit.shellLink.allowEdit`
+
+- Type `boolean`, default `true`.
+- Whether the shortcut page offers the edit form. `false` leaves the page readable but not writable.
+
+### `wispkit.executable.openBehavior`
+
+- Type `string`, enum `system` / `viewer` / `ask`, default `system`.
+- `system`: start the executable; `viewer`: open the PE property page; `ask`: ask first.
+
+**Working-directory contract**, because it deliberately differs between the two kinds: an executable started from Wispkit is pinned to **its own directory**, while a shortcut is started with the start-in directory stored inside it, left untouched.
 
 ## `configurationDefaults`: mermaid zooms out of the box
 
@@ -259,6 +301,12 @@ The "Show" icon on the left of an Explorer folder row reads this file.
   ],
 
   // Custom resource management
-  "wispkit.resourceTree.file": "${workspaceFolder}/.WispkitView/resource-tree.json"
+  "wispkit.resourceTree.file": "${workspaceFolder}/.WispkitView/resource-tree.json",
+
+  // Windows shortcut and executable
+  "wispkit.shellLink.openBehavior": "ask",
+  "wispkit.shellLink.folderTarget": "subtree",
+  "wispkit.shellLink.allowEdit": true,
+  "wispkit.executable.openBehavior": "viewer"
 }
 ```

@@ -4,7 +4,7 @@ title: Limitaciones conocidas y elementos no verificados
 description: Lo que Wispkit no puede hacer, por qué existe cada límite (incluida la cobertura de diagramas 3D, los límites de los árboles ASCII, los topes de grafos grandes y los límites de disco / concurrencia / multitráiz del árbol de recursos) y lo que nunca se verificó en una máquina real
 tags: [limitations, unverified, honesty]
 status: stable
-generated: { by: dsh/deepseek-flash, at: 2026-10-18T00:03:57+08:00 }
+generated: { by: dsh/deepseek-flash, at: 2026-11-06T15:50:00+08:00 }
 ---
 
 # Limitaciones conocidas y elementos no verificados
@@ -203,6 +203,48 @@ Esta página solo describe «lo que no se puede» y «lo que no se ha verificado
 - **Alternativa**: abrirlo en el reproductor del sistema o transcodificarlo a MP4 (H.264 / AAC).
 - **Verificado**: en VS Code 1.137.0 / Electron 42 reales: WebP, AVIF y SVG se decodifican; aparece el panel de respaldo HEIC; la reproducción MP4 avanza `currentTime`; un MKV corrupto muestra el respaldo de código de error 4 (`.selftest/e2e-media/probe-media.mjs`, 17/17).
 
+### 28. El destino de carpeta de un acceso directo solo llega al panel de subárbol
+
+- **Síntoma**: con `wispkit.shellLink.openBehavior` en `internal`, un acceso directo que apunta a una carpeta abre el panel de subárbol; no hay forma de abrir esa misma carpeta en el navegador de comparación.
+- **Causa**: el navegador de comparación no acepta un directorio inicial, así que el panel de subárbol es el único destino interno.
+- **Alternativa**: navegar a la carpeta a mano en el navegador de comparación, o volver a poner el comportamiento en `system`.
+
+### 29. Los archivos `.dll` no tienen página de propiedades
+
+- **Síntoma**: un `.dll` no ofrece ninguna vía de «abrir como ejecutable»; solo se reclama `.exe`.
+- **Causa**: solo `*.exe` está registrado como selector. El analizador PE es válido para DLL y declara el indicador de DLL, pero ningún selector reclama la extensión.
+- **Alternativa**: usar un visor PE externo, o copiar el archivo con extensión `.exe`.
+
+### 30. La edición de accesos directos es solo para Windows
+
+- **Síntoma**: en macOS y Linux la página del acceso directo muestra los campos analizados pero no el formulario de edición.
+- **Causa**: escribir un `.lnk` pasa por el objeto de acceso directo del anfitrión de scripts de Windows; la extensión no incluye un equivalente multiplataforma.
+- **Alternativa**: editar el acceso directo en Windows.
+
+### 31. Un acceso directo que solo guarda una IDList de destino no puede abrirse internamente
+
+- **Síntoma**: con el comportamiento en `internal`, ese acceso directo recurre a entregar el archivo al sistema en lugar de abrir el destino.
+- **Causa**: el archivo registra una lista de elementos del shell y no una ruta absoluta legible, así que no hay ninguna ruta que se pueda abrir con seguridad.
+- **Alternativa**: usar la vía del sistema.
+
+### 32. Los archivos por encima del tope de 256 MB se rechazan
+
+- **Síntoma**: abrir un acceso directo o un ejecutable mayor que el tope informa del tamaño y no lo analiza.
+- **Causa**: analizar un archivo sin límite en el anfitrión de la extensión bloquearía la interfaz.
+- **Alternativa**: usar una herramienta externa de PE o de accesos directos.
+
+### 33. El análisis de accesos directos es multiplataforma, pero la apertura y la edición no
+
+- **Síntoma**: en macOS y Linux los campos del `.lnk` se leen, mientras que la vía de apertura del sistema y el formulario de edición no están disponibles.
+- **Causa**: el análisis es a nivel de bytes e independiente de la plataforma; abrir y escribir están ligados a la plataforma.
+- **Alternativa**: abrir el acceso directo a través del sistema en esas plataformas.
+
+### 34. Los iconos reales de archivo solo existen en Windows
+
+- **Síntoma**: en macOS y Linux, las filas `.lnk` y `.exe` muestran el icono genérico del tema de iconos en lugar del incrustado en el archivo.
+- **Causa**: el icono se toma mediante la asociación de shell de Windows (`ExtractAssociatedIcon`); otras plataformas no tienen equivalente, y descodificar recursos PE a mano solo para dibujar un icono de 16 px no compensa el código.
+- **Alternativa**: usar allí el tema de iconos — el análisis, la apertura y todo lo demás siguen funcionando.
+
 ## 2. Elementos no verificados
 
 Lo siguiente **no se ha verificado en un VS Code real**. No significa que no funcione, solo que no hay evidencia.
@@ -225,6 +267,7 @@ Lo siguiente **no se ha verificado en un VS Code real**. No significa que no fun
 | 14 | **Rendimiento de stat en unidades de red / árboles enormes** | el `fs.statSync` síncrono por fila ya no existe y el banco local de 2000 nodos / 1000 subdirectorios pasa (véase el elemento 23), pero los recursos compartidos de red, la alta latencia y las implementaciones de `workspace.fs` de cada proveedor siguen sin probarse; los cambios externos también pueden tardar hasta el TTL de 30 s | Apuntar el árbol a un recurso compartido de red o a un directorio con miles de subdirectorios y registrar los tiempos de primera expansión / actualización y la fluidez de la interfaz |
 | 15 | **Tiempo de conflicto de ediciones externas concurrentes** — ✅ verificado (2026-10-26, VS Code 1.137.0, Windows 11) | Construido con un búfer real del editor de texto de VS Code y un escritor externo: búfer externo sin guardar + escritura de la extensión → guardado externo → Actualizar pierde la escritura de la extensión (VS Code pide antes Overwrite / Compare); escritura de la extensión → sobrescritura externa → Actualizar lee la versión externa; JSON no válido + Actualizar conserva el árbol, no toca el archivo y no se bloquea; matar el host de extensiones entre dos escrituras deja el archivo intacto y sin `.tmp-*`. Se añadió una comparación canónica previa a la escritura con aviso no modal Sobrescribir / Cancelar: Cancelar deja ambos lados igual, Sobrescribir sigue siendo «gana el último que escribe» y la comprobación tiene una ventana TOCTOU. Evidencia: `.selftest/e2e-resource-tree-concurrency/probe-concurrency.mjs` (17/17), capturas `cc-01…cc-11` | cerrado — la ventana de kill durante la escritura se registra en el punto 23 |
 | 16 | **Presentación de enlaces simbólicos / rutas sin permisos** — ✅ verificado (2026-10-26, VS Code 1.137.0, Windows 11) | Se crearon enlaces simbólicos de directorio y de archivo, enlaces rotos (directorio / archivo), un directorio de solo lectura y un directorio con ACL denegada: el enlace de directorio se trata como directorio, el de archivo muestra `⚠ No es una carpeta`, los enlaces rotos ahora muestran `⚠ Enlace roto` con un aviso claro al pulsar; el directorio de solo lectura no cambia; el directorio con ACL denegada sigue haciendo stat con éxito en NTFS local, así que el árbol lo muestra como carpeta normal (no se confunde con «no existe», pero tampoco avisa). EACCES no se pudo reproducir porque la máquina se ejecutó como Administrador con `SeBackupPrivilege`. Evidencia: `.selftest/e2e-resource-tree-symlink/probe-symlink-{before,after}.mjs` y `sym-*.png` | cerrado, no requiere más verificación |
+| 17 | **Las páginas de propiedades de accesos directos y ejecutables en una ventana real de VS Code** | el análisis, la política de apertura, la reescritura al editar y el lector PE tienen casos unitarios, pero ninguna página se ha abierto en una ventana en ejecución, y la vía editable llama al anfitrión de scripts de Windows, que ninguna prueba unitaria puede ejecutar | abrir un `.lnk` y un `.exe` reales en esta vista, cambiar un campo y guardar, y luego reabrir el acceso directo para confirmar que el cambio llegó y que el icono y la tecla de acceso rápido sobrevivieron |
 
 > La comprobación local del punto 13 se completó el 2026-10-26; las sondas y capturas están en `.selftest/e2e-resource-tree-remote/` (`probe-remote.mjs`, `probe-ui-only.mjs`, `rem-01…rem-03`). En esta máquina no hay ninguno de los cuatro proveedores nombrados, por lo que el punto **sigue sin verificar**; solo se obtuvo evidencia del proveedor `file` sobre un recurso compartido SMB de bucle local, y tanto el recurso como VS Code están en el mismo host Windows, así que no representa un sistema de archivos entre hosts / Linux. Observación adicional: con el destino bloqueado, `workspace.fs.rename(overwrite:true)` falló con `EBUSY ... unlink '<target>'`, es decir, esa ruta ejecuta un unlink del destino; si el unlink tiene éxito y el rename posterior falla (por ejemplo, si se mata el proceso), el archivo antiguo puede haber desaparecido y solo quedar el `.tmp-*`. Sigue sin haber respaldo copy+fsync.
 

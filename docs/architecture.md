@@ -215,7 +215,7 @@ Resource management follows the same interaction model as drawcode's assembly tr
 
 **Why does read-only mode not create a `TextDocument`?** The goal is precisely "save the load cost". Only `CustomEditorProvider` + reading the file head directly can avoid pulling the whole file into memory; the price is losing the official syntax colouring, which is why `readonly/highlight.ts` implements a generic highlighter instead.
 
-**Why keep pure logic in files that do not import `vscode`?** To make it testable. `src` holds 30,345 lines of TypeScript (12,635 of them tests), 62 test files and 1059 cases; a large share of those cases run in plain Node without starting VS Code — which is only possible when parsing, formatting, sorting, highlighting and layout are decoupled from `vscode`.
+**Why keep pure logic in files that do not import `vscode`?** To make it testable. `src` holds 39,534 lines of TypeScript (16,202 of them tests), 70 test files and 1149 cases; a large share of those cases run in plain Node without starting VS Code — which is only possible when parsing, formatting, sorting, highlighting and layout are decoupled from `vscode`.
 
 **Why does 3D not reuse Mermaid's renderer?** Mermaid outputs 2D SVG, which cannot be turned directly into a rotatable 3D scene; 3D needs the topology (who connects to whom), not the styling. Wispkit parses only the topology and lays it out itself, trading visual parity with Mermaid themes for offline operation, zero CDN and a unit-testable layout (see [known limitations](limitations.md#15-3d-visualization-parses-topology-not-the-mermaid-rendering)).
 
@@ -225,5 +225,5 @@ Resource management follows the same interaction model as drawcode's assembly tr
 |---|---|
 | Extension host and pure logic | `src` totals 22,816 lines of TypeScript (13,093 excluding tests) |
 | Front end | 22 hand-written files under `media` (including 6 reused components in `shared/`) + 7 esbuild outputs |
-| Tests | 62 test files / 1059 cases |
+| Tests | 70 test files / 1149 cases |
 | Native tool shipped with the extension | `tools/xaml-render` (.NET, framework-dependent) |

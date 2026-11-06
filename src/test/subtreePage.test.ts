@@ -421,6 +421,64 @@ describe('media/subtree.js', () => {
 		assert.strictEqual(api.selectedPath(), NESTED);
 	});
 
+	it('type-ahead：连按同一个字母依次往下跳，到末尾再回到开头', () => {
+		const names = ['apple.txt', 'avocado.txt', 'banana.txt'];
+		const { api } = setupPage();
+		api.applyLevel(ROOT, names.map(name => ({
+			name,
+			path: `${ROOT}\\${name}`,
+			isDirectory: false,
+			cells: { name, size: '-', mtime: '-' },
+		})));
+
+		assert.strictEqual(api.typeAheadKey('a'), 'apple.txt');
+		assert.strictEqual(api.typeAheadKey('a'), 'avocado.txt');
+		assert.strictEqual(api.typeAheadKey('a'), 'apple.txt', '环形回到第一个');
+	});
+
+	it('type-ahead：数字开头同样能跳到', () => {
+		const names = ['apple.txt', '1report.md', '2notes.md'];
+		const { api } = setupPage();
+		api.applyLevel(ROOT, names.map(name => ({
+			name,
+			path: `${ROOT}\\${name}`,
+			isDirectory: false,
+			cells: { name, size: '-', mtime: '-' },
+		})));
+
+		assert.strictEqual(api.typeAheadKey('2'), '2notes.md');
+		assert.strictEqual(api.selectedPath(), `${ROOT}\\2notes.md`);
+	});
+
+	it('type-ahead：中文名按输入法落字直接匹配，不做拼音猜测', () => {
+		const names = ['apple.txt', '文档.md', '资料.md'];
+		const { api } = setupPage();
+		api.applyLevel(ROOT, names.map(name => ({
+			name,
+			path: `${ROOT}\\${name}`,
+			isDirectory: false,
+			cells: { name, size: '-', mtime: '-' },
+		})));
+
+		assert.strictEqual(api.typeAhead('文'), '文档.md');
+		assert.strictEqual(api.typeAhead('资'), '资料.md');
+		assert.strictEqual(api.typeAhead('w'), null, '拼音不在匹配范围内');
+	});
+
+	it('type-ahead：关掉设置后按键不再改变选择', () => {
+		const names = ['apple.txt', 'banana.txt'];
+		const { api } = setupPage({ ...CONFIG, typeAhead: false });
+		api.applyLevel(ROOT, names.map(name => ({
+			name,
+			path: `${ROOT}\\${name}`,
+			isDirectory: false,
+			cells: { name, size: '-', mtime: '-' },
+		})));
+
+		assert.strictEqual(api.typeAheadKey('b'), null);
+		assert.strictEqual(api.selectedPath(), null);
+	});
+
 	it('列宽可调并记住；复位回到配置宽度', () => {
 		const { api, store } = setupPage();
 		assert.strictEqual(api.columnWidths().name, 280);
