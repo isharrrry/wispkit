@@ -358,7 +358,7 @@ Windows 的 `.lnk` 是一个记录「指向什么」的小二进制文件。这�
 
 | 类别 | 来源 | 说明 |
 |---|---|---|
-| 文件操作（native） | Wispkit 自研 | 剪切 / 复制 / 粘贴 / 重命名 / 删除 / 新建文件 / 新建文件夹 / 比较。**不自研就用不了**：内置 `filesExplorer.*` 命令不接受外部 URI 参数 |
+| 文件操作（native） | Wispkit 自研 | 剪切 / 复制 / 粘贴 / 重命名 / 删除 / 新建文件 / 新建文件夹 / 比较，另有**系统终端**与**用默认应用打开**。**不自研就用不了**：内置 `filesExplorer.*` 命令不接受外部 URI 参数 |
 | 扩展贡献命令 | 自动收集 | 遍历已装扩展的 `contributes.menus['explorer/context']`，执行前校验命令存在 |
 | 内置白名单 | 手工列 | 执行前用 `commands.getCommands(true)` 校验；不存在就明说，不静默 |
 | 自定义工具 | `wispkit.subtree.tools` | 支持 `${file}` `${dir}` `${name}` `${workspaceFolder}`；四种执行方式见下表 |
@@ -371,6 +371,10 @@ Windows 的 `.lnk` 是一个记录「指向什么」的小二进制文件。这�
 | `external` | 脱离进程启动系统终端窗口 |
 
 **对象是「表格选中条目」而不是资源管理器选中条目** —— 右侧所有按钮都作用于子树面板里当前选中的那一行。
+
+**在终端中打开**（`openInTerminal`）与**系统终端打开**看着像，实际刻意分开：前者写进编辑器自己管的终端，后者启动一个独立窗口、编辑器关掉它也还在。它的子菜单只列当前平台真有的终端 —— Windows 是 cmd 与 PowerShell（各带一个管理员变体），macOS 是 Terminal.app，Linux 是桌面终端 —— 并且终端落在选中的文件夹里，选中的是文件时落在它所在的文件夹。
+
+**用默认应用打开**（`vscode.open`）把选中项交给操作系统为它注册的程序，效果等同双击。选中项里只要有文件夹就置灰：那样会再开一个窗口，而那已经由「在新窗口打开文件夹」负责。
 
 ### 拖放
 
@@ -390,6 +394,7 @@ Windows 的 `.lnk` 是一个记录「指向什么」的小二进制文件。这�
 | `wispkit.subtree.sort` | 按列排序 |
 | `wispkit.subtree.command` | 执行扩展/内置命令 |
 | `wispkit.subtree.fileAction` | 文件操作，具体分支 `cut` / `copy` / `paste` / `rename` / `delete` / `newFile` / `newFolder` / `compare` |
+| `wispkit.subtree.systemTerminal` | 启动系统终端：`kind` 指定平台终端（如 `windows-powershell-admin`），`paths` 带选中项 |
 | `wispkit.subtree.tool` | 执行自定义工具 |
 | `wispkit.subtree.open` | 打开/定位条目 |
 | `wispkit.subtree.drop` | 拖入资源的原始内容（`targetDir` + `files` 字节 + `strings`），宿主负责询问与落盘；`internalDrag` + `moveRequested` 表示「来自子树内部拖拽且按着 Ctrl/Cmd」，宿主据此跳过复制/移动询问、直接移动 |

@@ -15,6 +15,15 @@ const COMMANDS = [
 	{ id: 'wispkit.subtree.newFile', label: '新建文件', kind: 'native', source: 'wispkit', group: 'edit', icon: 'new-file', appliesTo: 'folders', disabledReason: '新建文件需要选中一个文件夹' },
 	{ id: 'copyFilePath', label: '复制绝对路径', kind: 'builtin', source: 'builtin', group: 'path', icon: 'link', appliesTo: 'any' },
 	{ id: 'revealInExplorer', label: '在资源管理器中显示', kind: 'builtin', source: 'builtin', group: 'navigate', icon: 'reveal', appliesTo: 'single' },
+	{ id: 'vscode.open', label: '用默认应用打开', kind: 'builtin', source: 'builtin', group: 'navigate', icon: 'open', appliesTo: 'files', disabledReason: '文件夹请用「在新窗口打开文件夹」' },
+	{
+		id: 'wispkit.subtree.systemTerminal', label: '系统终端打开', kind: 'native', source: 'wispkit', group: 'navigate', icon: 'terminal',
+		appliesTo: 'single',
+		children: [
+			{ id: 'windows-cmd', label: '命令提示符 (cmd)', description: '在当前文件夹打开系统 cmd 窗口' },
+			{ id: 'windows-powershell', label: 'PowerShell', description: '在当前文件夹打开 PowerShell 窗口' },
+		],
+	},
 	{ id: 'demo.doThing', label: '做点事', kind: 'extension', source: 'demo.ext', group: 'extension', icon: 'extension', appliesTo: 'any' },
 ];
 
@@ -153,6 +162,38 @@ describe('子树浏览右键菜单', () => {
 		assert.strictEqual(message.command, 'copyFilePath');
 		assert.deepStrictEqual(message.paths, [FILE]);
 		assert.strictEqual(api.contextMenu().open, false);
+	});
+});
+
+describe('子树浏览：系统终端二级菜单与默认应用打开', () => {
+	it('「系统终端打开」是可展开项，子项来自宿主下发', () => {
+		const { api } = setupSubtree();
+		api.openContextMenu(FILE);
+		const menu = api.contextMenu();
+		assert.ok(menu.labels.includes('系统终端打开'));
+		assert.ok(menu.submenus.includes('系统终端打开'), '应当是带子项的那一条');
+		assert.deepStrictEqual(api.openContextSubmenu('系统终端打开'), ['命令提示符 (cmd)', 'PowerShell']);
+	});
+
+	it('点子项发出 systemTerminal 消息，带终端类型与选中路径，点完菜单关闭', () => {
+		const { api, messages } = setupSubtree();
+		api.openContextMenu(FILE);
+		api.openContextSubmenu('系统终端打开');
+		assert.strictEqual(api.clickContextSubmenu('PowerShell'), true);
+		const message = messages.filter(item => item.type === 'wispkit.subtree.systemTerminal').pop();
+		assert.ok(message);
+		assert.strictEqual(message.kind, 'windows-powershell');
+		assert.deepStrictEqual(message.paths, [FILE]);
+		assert.strictEqual(api.contextMenu().open, false);
+	});
+
+	it('「用默认应用打开」只在选中的是文件时可用', () => {
+		const { api } = setupSubtree();
+		api.openContextMenu(SUB);
+		assert.ok(api.contextMenu().disabled.includes('用默认应用打开'), '文件夹应置灰');
+		api.closeContextMenu();
+		api.openContextMenu(FILE);
+		assert.strictEqual(api.contextMenu().disabled.includes('用默认应用打开'), false);
 	});
 });
 

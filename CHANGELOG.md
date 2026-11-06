@@ -32,6 +32,14 @@ public release.
 - **Type-ahead in the subtree list** — typing a letter or a digit jumps to the first name starting
   with it, pressing the same character again walks down and wraps around, and Chinese names match
   the text the input method commits. The new `wispkit.subtree.typeAhead` setting turns it off.
+- **System terminal from the subtree panel** — "System terminal" in the action area and the
+  right-click menu opens a submenu whose entries come from the platform (cmd, PowerShell, both
+  with an elevated variant on Windows; Terminal.app on macOS; the desktop terminal on Linux).
+  The window starts in the selected folder, or in the selected file's own folder, and is
+  independent of the editor.
+- **Open with the default application** — a subtree action that hands the selected files to the
+  application registered with the operating system, the same thing double-clicking does. It is
+  offered for files only; folders keep using "Open folder in new window".
 
 ## [0.2.15] - 2026-11-06
 

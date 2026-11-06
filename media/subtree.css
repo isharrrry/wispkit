@@ -529,6 +529,20 @@ img.wispkit-subtree-own-icon {
 	background: var(--vscode-menu-separatorBackground, var(--vscode-panel-border, rgba(128, 128, 128, 0.35)));
 }
 
+/* 二级菜单：与主菜单同一套视口坐标（都是 position: fixed），只是层级更高 */
+.wispkit-submenu {
+	z-index: 10000;
+}
+
+.wispkit-menu-arrow {
+	margin-left: auto;
+	flex: 0 0 auto;
+	padding-left: 10px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	line-height: 1;
+}
+
 /* ---------------------------------------------------------------- 拖拽光标 */
 
 /*

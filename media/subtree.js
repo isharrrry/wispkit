@@ -1185,7 +1185,7 @@ function makeActionButton(options) {
 		button.appendChild(badge);
 	}
 
-	button.addEventListener('click', () => options.onClick());
+	button.addEventListener('click', () => options.onClick(button));
 	return button;
 }
 
@@ -1247,6 +1247,8 @@ function isApplicable(command) {
 			return shape.count === 2;
 		case 'folders':
 			return shape.count === 0 || (shape.directoryCount === shape.count && shape.count > 0);
+		case 'files':
+			return shape.count > 0 && shape.directoryCount === 0;
 		default:
 			return false;
 	}
@@ -1257,6 +1259,7 @@ const DEFAULT_DISABLED_REASON = {
 	single: '需要恰好选中一个条目',
 	two: '需要恰好选中两个条目',
 	folders: '需要选中一个文件夹',
+	files: '需要选中文件',
 };
 
 /** `title`：可用时说明这条命令对谁生效，置灰时说明为什么不能用。 */
@@ -1271,7 +1274,12 @@ function commandTitle(command) {
 }
 
 /** native 走自研的 fileAction 通道（宿主用 workspace.fs 直接操作选中项），其余走 executeCommand。 */
-function runCommand(command) {
+function runCommand(command, childId) {
+	if (childId) {
+		// 二级菜单项：目前只有「系统终端打开」，终端类型回传给宿主去选启动方式
+		post({ type: 'wispkit.subtree.systemTerminal', kind: childId, paths: [...selection] });
+		return;
+	}
 	if (command.kind === 'native') {
 		post({ type: 'wispkit.subtree.fileAction', action: command.id, paths: [...selection] });
 		return;
@@ -1309,10 +1317,14 @@ function renderCommands() {
 
 		for (const command of buckets.get(group)) {
 			const enabled = isApplicable(command);
+			const hasChildren = Array.isArray(command.children) && command.children.length > 0;
 			let buttonTitle = commandTitle(command);
 			if (enabled) {
 				if (command.id === 'wispkit.subtree.paste' && config.clipboard) {
 					buttonTitle += `（${config.clipboard}）`;
+				}
+				if (hasChildren) {
+					buttonTitle += '（点击选择具体类型）';
 				}
 			} else {
 				buttonTitle = `${command.label} 不可用：`
@@ -1326,7 +1338,15 @@ function renderCommands() {
 				title: buttonTitle,
 				commandId: command.id,
 				enabled,
-				onClick: () => runCommand(command),
+				// 有子项的按钮不给它自己的动作，点了就地展开与右键菜单同一份子项
+				onClick: button => {
+					if (hasChildren) {
+						const rect = button.getBoundingClientRect();
+						contextMenu.open(commandChildItems(command), rect.left, rect.bottom + 2);
+						return;
+					}
+					runCommand(command);
+				},
 			}));
 		}
 
@@ -1407,16 +1427,39 @@ function isApplicableForContext(command) {
 	return isApplicable(command);
 }
 
+/** 二级菜单项：右键菜单与右侧操作栏共用同一份，保证两处展开的子项一模一样。 */
+function commandChildItems(command) {
+	return (command.children || []).map(child => ({
+		label: child.label,
+		icon: command.icon || 'action',
+		title: child.description || child.label,
+		run: () => runCommand(command, child.id),
+	}));
+}
+
 function contextCommandItem(command) {
 	const enabled = isApplicableForContext(command);
+	const hasChildren = Array.isArray(command.children) && command.children.length > 0;
 	let title = commandTitle(command);
 	if (enabled) {
 		if (command.id === 'wispkit.subtree.paste' && config.clipboard) {
 			title += `（${config.clipboard}）`;
 		}
+		if (hasChildren) {
+			title += '（展开选择具体类型）';
+		}
 	} else {
 		title = `${command.label} 不可用：`
 			+ `${command.disabledReason || DEFAULT_DISABLED_REASON[command.appliesTo] || '当前选中状态不适用'}`;
+	}
+	if (hasChildren) {
+		return {
+			label: command.label,
+			icon: command.icon || 'action',
+			title,
+			disabled: !enabled,
+			children: commandChildItems(command),
+		};
 	}
 	return {
 		label: command.label,
@@ -2086,6 +2129,10 @@ Object.defineProperty(window, '__wispkitSelftest', {
 			labels: contextMenu.labels,
 			icons: contextMenu.icons,
 			disabled: contextMenu.disabledLabels,
+			/** 带子项的条目（右键时展开二级菜单的那些）。 */
+			submenus: Array.from(document.querySelectorAll('.wispkit-menu .wispkit-menu-item.has-submenu'))
+				.map(item => item.querySelector('.wispkit-menu-label')?.textContent ?? ''),
+			submenuLabels: contextMenu.submenuLabels,
 		}),
 		openContextMenu: (path, x = 12, y = 12) => {
 			const row = path ? findRow(path) : null;
@@ -2095,6 +2142,8 @@ Object.defineProperty(window, '__wispkitSelftest', {
 			return openContextMenu(row, x, y);
 		},
 		clickContextMenu: label => contextMenu.click(label),
+		openContextSubmenu: label => contextMenu.openSubmenu(label),
+		clickContextSubmenu: label => contextMenu.clickInSubmenu(label),
 		closeContextMenu: () => contextMenu.close(),
 
 		// —— 拖拽 ——

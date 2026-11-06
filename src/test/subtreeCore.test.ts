@@ -13,6 +13,8 @@ import {
 	NATIVE_FILE_COMMANDS,
 	nlsFileCandidates,
 	resolveCommandLabel,
+	SYSTEM_TERMINAL_COMMAND_ID,
+	withSystemTerminalChildren,
 } from '../subtree/explorerCommands';
 import {
 	deleteConfirmation,
@@ -520,6 +522,47 @@ describe('subtree/explorerCommands 过滤与分组', () => {
 		assert.ok(found);
 		assert.strictEqual(found.label, 'Find All File References');
 		assert.strictEqual(found.kind, 'extension');
+	});
+
+	it('「系统终端打开」按平台挂子项；平台没有终端时整条命令消失', () => {
+		const windows = withSystemTerminalChildren(NATIVE_FILE_COMMANDS, [
+			{ kind: 'windows-cmd', label: '命令提示符 (cmd)', description: '在当前文件夹打开系统 cmd 窗口' },
+			{ kind: 'windows-powershell', label: 'PowerShell', description: '在当前文件夹打开 PowerShell 窗口' },
+			{ kind: 'windows-cmd-admin', label: '命令提示符 (管理员)', description: '会弹出 UAC 提权确认' },
+			{ kind: 'windows-powershell-admin', label: 'PowerShell (管理员)', description: '会弹出 UAC 提权确认' },
+		]).find(command => command.id === SYSTEM_TERMINAL_COMMAND_ID);
+		assert.ok(windows);
+		assert.deepStrictEqual(windows.children?.map(child => child.id), [
+			'windows-cmd', 'windows-powershell', 'windows-cmd-admin', 'windows-powershell-admin',
+		]);
+		assert.strictEqual(windows.children?.[2].label, '命令提示符 (管理员)');
+		assert.strictEqual(windows.kind, 'native', '子项要回传给宿主去启动，所以走 wispkit 自己那条通道');
+
+		// 平台一个可用终端都没有时不能留一条「展开后空白」的菜单
+		assert.strictEqual(
+			withSystemTerminalChildren(NATIVE_FILE_COMMANDS, []).some(command => command.id === SYSTEM_TERMINAL_COMMAND_ID),
+			false,
+		);
+	});
+
+	it('「在终端中打开」是 VS Code 集成终端，「系统终端打开」是独立窗口 —— 两条并存', () => {
+		const integrated = BUILTIN_EXPLORER_COMMANDS.find(command => command.id === 'openInTerminal');
+		const external = NATIVE_FILE_COMMANDS.find(command => command.id === SYSTEM_TERMINAL_COMMAND_ID);
+		assert.ok(integrated);
+		assert.ok(external);
+		assert.strictEqual(external.label, '系统终端打开');
+		assert.strictEqual(external.group, 'navigate');
+	});
+
+	it('「用默认应用打开」只对文件生效：文件夹交给「在新窗口打开文件夹」', () => {
+		const openDefault = BUILTIN_EXPLORER_COMMANDS.find(command => command.id === 'vscode.open');
+		assert.ok(openDefault);
+		assert.strictEqual(openDefault.appliesTo, 'files');
+		assert.strictEqual(isCommandApplicable(openDefault, { count: 1, directoryCount: 0, unknown: false }), true);
+		assert.strictEqual(isCommandApplicable(openDefault, { count: 1, directoryCount: 1, unknown: false }), false);
+		// 混合选中（一个文件 + 一个文件夹）也不该冒出来：对哪个都不对
+		assert.strictEqual(isCommandApplicable(openDefault, { count: 2, directoryCount: 1, unknown: false }), false);
+		assert.strictEqual(isCommandApplicable(openDefault, { count: 0, directoryCount: 0, unknown: false }), false);
 	});
 });
 

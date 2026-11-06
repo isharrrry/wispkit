@@ -264,6 +264,8 @@ Tres hechos de numeración son estructurales y deben sobrevivir a cualquier edic
 - **AC-R11.9** — **CUANDO** un directorio contiene más entradas que el tope declarado, **ENTONCES** el exceso se trunca y el truncamiento se indica en el panel.
 - **AC-R11.10** — **CUANDO** se escribe un carácter imprimible con el panel enfocado, **ENTONCES** la selección pasa a la primera entrada visible cuyo nombre empieza por ese prefijo, pulsar el mismo carácter otra vez sigue bajando por la lista y vuelve al principio, y apagar el interruptor detiene el comportamiento por completo.
 - **AC-R11.11** — **CUANDO** una fila visible es un acceso directo o un ejecutable de Windows, **ENTONCES** la fila muestra el icono incrustado en el archivo cuando la plataforma lo ofrece y, si no, recurre al tema de iconos.
+- **AC-R11.12** — **CUANDO** se elige el terminal del sistema para la selección, **ENTONCES** arranca un terminal independiente del editor en la carpeta seleccionada (en la carpeta del archivo seleccionado cuando se selecciona un archivo), y los tipos de terminal ofrecidos son exactamente los que ofrece la plataforma actual.
+- **AC-R11.13** — **CUANDO** se elige abrir con la aplicación predeterminada, **ENTONCES** la selección se entrega a la aplicación que el sistema operativo tiene registrada, y esa entrada no está disponible cuando la selección contiene una carpeta.
 
 **Evidencia.** [Vistas e interacción → Panel de subárbol](views-and-interaction.es.md#panel-de-subárbol-wispkitsubtree); material en `demo/R11-subtree/`; resultados de sondas en [Compilación y verificación](build-and-verify.es.md).
 

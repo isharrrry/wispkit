@@ -20,8 +20,17 @@ function makeIcon(doc, name) {
 export function createContextMenu(options = {}) {
 	const doc = options.document ?? (typeof document !== 'undefined' ? document : null);
 	let menu = null;
+	let submenu = null;
+
+	const closeSubmenu = () => {
+		if (submenu) {
+			submenu.remove();
+			submenu = null;
+		}
+	};
 
 	const close = () => {
+		closeSubmenu();
 		if (menu) {
 			menu.remove();
 			menu = null;
@@ -41,23 +50,23 @@ export function createContextMenu(options = {}) {
 		menu.style.top = `${top}px`;
 	};
 
-	const open = (items, x, y) => {
-		close();
-		if (!doc || !items || items.length === 0) {
-			return false;
-		}
-
-		menu = doc.createElement('div');
-		menu.className = 'wispkit-menu';
-		menu.setAttribute('role', 'menu');
+	/**
+	 * 把一组菜单项渲染成浮层元素。主菜单与二级菜单共用同一套渲染，
+	 * 差别只在定位位置（`openSubmenu` 会额外加 `.wispkit-submenu`）。
+	 */
+	const renderItems = items => {
+		const el = doc.createElement('div');
+		el.className = 'wispkit-menu';
+		el.setAttribute('role', 'menu');
 
 		for (const item of items) {
 			if (item.separator) {
 				const separator = doc.createElement('div');
 				separator.className = 'wispkit-menu-separator';
-				menu.appendChild(separator);
+				el.appendChild(separator);
 				continue;
 			}
+			const children = Array.isArray(item.children) && item.children.length > 0 ? item.children : null;
 			const button = doc.createElement('button');
 			button.type = 'button';
 			button.className = 'wispkit-menu-item';
@@ -78,17 +87,77 @@ export function createContextMenu(options = {}) {
 				badge.textContent = String(item.badge);
 				button.appendChild(badge);
 			}
+			if (children) {
+				button.classList.add('has-submenu');
+				button.setAttribute('aria-haspopup', 'menu');
+				const arrow = doc.createElement('span');
+				arrow.className = 'wispkit-menu-arrow';
+				arrow.setAttribute('aria-hidden', 'true');
+				arrow.textContent = '▸';
+				button.appendChild(arrow);
+			}
 			if (item.disabled === true) {
 				button.disabled = true;
 				button.classList.add('is-disabled');
 			}
-			button.addEventListener('click', () => {
+			button.addEventListener('click', event => {
+				if (children) {
+					// 有子项的条目不执行自身动作，只展开二级菜单
+					event.stopPropagation();
+					if (button.disabled !== true) {
+						openSubmenu(button, children);
+					}
+					return;
+				}
 				close();
 				item.run?.();
 			});
-			menu.appendChild(button);
+			if (children && item.disabled !== true) {
+				button.addEventListener('pointerenter', () => openSubmenu(button, children));
+				button.addEventListener('pointerleave', closeSubmenu);
+			}
+			el.appendChild(button);
 		}
 
+		return el;
+	};
+
+	/**
+	 * 二级菜单：定位在主菜单右边缘，右边放不下就翻到左侧。
+	 * 坐标与主菜单同样按视口算（主菜单也是拿指针的 clientX / clientY 当 left / top）。
+	 */
+	const openSubmenu = (button, items) => {
+		closeSubmenu();
+		if (!doc || !items || items.length === 0) {
+			return;
+		}
+		submenu = renderItems(items);
+		submenu.classList.add('wispkit-submenu');
+		doc.body.appendChild(submenu);
+
+		const anchor = (menu ?? button).getBoundingClientRect();
+		const rect = button.getBoundingClientRect();
+		const viewportWidth = doc.documentElement?.clientWidth || doc.defaultView?.innerWidth || 0;
+		const viewportHeight = doc.documentElement?.clientHeight || doc.defaultView?.innerHeight || 0;
+		const width = submenu.offsetWidth;
+		const height = submenu.offsetHeight;
+
+		let left = (anchor.width > 0 ? anchor.right : rect.right) - 4;
+		if (width > 0 && viewportWidth > 0 && left + width > viewportWidth) {
+			left = Math.max(0, (anchor.width > 0 ? anchor.left : rect.left) - width + 4);
+		}
+		const top = Math.max(0, Math.min(rect.top, viewportHeight - height - 4));
+		submenu.style.left = `${left}px`;
+		submenu.style.top = `${top}px`;
+	};
+
+	const open = (items, x, y) => {
+		close();
+		if (!doc || !items || items.length === 0) {
+			return false;
+		}
+
+		menu = renderItems(items);
 		doc.body.appendChild(menu);
 		// 先定位再测量：appendChild 之后才有尺寸
 		place(x, y);
@@ -106,7 +175,7 @@ export function createContextMenu(options = {}) {
 		if (!menu) {
 			return false;
 		}
-		if (menu.contains(event.target)) {
+		if (menu.contains(event.target) || submenu?.contains(event.target)) {
 			return true;
 		}
 		const rect = menu.getBoundingClientRect();
@@ -180,6 +249,32 @@ export function createContextMenu(options = {}) {
 		click(label) {
 			const target = menu
 				? Array.from(menu.querySelectorAll('.wispkit-menu-item'))
+					.find(item => (item.querySelector('.wispkit-menu-label')?.textContent ?? item.textContent) === label)
+				: null;
+			target?.click();
+			return Boolean(target);
+		},
+		/** 二级菜单里当前显示的条目文字；没展开时为空数组。 */
+		get submenuLabels() {
+			return submenu
+				? Array.from(submenu.querySelectorAll('.wispkit-menu-item'))
+					.map(item => item.querySelector('.wispkit-menu-label')?.textContent ?? item.textContent)
+				: [];
+		},
+		/** 供自动化验证：展开某个带子项的菜单条并返回子项文字。 */
+		openSubmenu(label) {
+			const target = menu
+				? Array.from(menu.querySelectorAll('.wispkit-menu-item'))
+					.find(item => (item.querySelector('.wispkit-menu-label')?.textContent ?? item.textContent) === label)
+				: null;
+			target?.click();
+			return target ? Array.from(submenu?.querySelectorAll('.wispkit-menu-item') ?? [])
+				.map(item => item.querySelector('.wispkit-menu-label')?.textContent ?? item.textContent) : [];
+		},
+		/** 供自动化验证：点二级菜单里的条目 */
+		clickInSubmenu(label) {
+			const target = submenu
+				? Array.from(submenu.querySelectorAll('.wispkit-menu-item'))
 					.find(item => (item.querySelector('.wispkit-menu-label')?.textContent ?? item.textContent) === label)
 				: null;
 			target?.click();

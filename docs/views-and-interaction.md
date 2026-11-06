@@ -349,7 +349,7 @@ Each **folder row** in the Explorer has two icons on its right: "Show" on the le
 
 | Kind | Source | Notes |
 |---|---|---|
-| File operations (native) | built into Wispkit | cut / copy / paste / rename / delete / new file / new folder / compare. **It has to be in-house**: the built-in `filesExplorer.*` commands do not accept external URIs |
+| File operations (native) | built into Wispkit | cut / copy / paste / rename / delete / new file / new folder / compare, plus **system terminal** and **open with the default application**. **It has to be in-house**: the built-in `filesExplorer.*` commands do not accept external URIs |
 | Extension-contributed commands | collected automatically | walks `contributes.menus['explorer/context']` of the installed extensions and checks the command exists before running it |
 | Built-in whitelist | listed by hand | validated with `commands.getCommands(true)` before running; if missing it says so instead of staying silent |
 | Custom tools | `wispkit.subtree.tools` | supports `${file}` `${dir}` `${name}` `${workspaceFolder}`; four execution modes below |
@@ -363,6 +363,10 @@ Each **folder row** in the Explorer has two icons on its right: "Show" on the le
 
 **The target is the row selected in the panel, not the row selected in the Explorer** — every button in the action area acts on the row currently selected in the subtree panel.
 
+**Open in terminal** (`openInTerminal`) and **System terminal** look alike and are deliberately different: the first writes into a terminal the editor owns, the second starts a window of its own that keeps running after the editor closes. Its submenu only lists the terminal kinds the current platform actually provides — cmd and PowerShell, each with an elevated variant on Windows; Terminal.app on macOS; the desktop terminal on Linux — and the window starts in the selected folder, or in the selected file's own folder.
+
+**Open with the default application** (`vscode.open`) hands the selection to the application the operating system registered for it, which is what double-clicking does. It stays greyed out whenever the selection contains a folder: opening a folder that way would produce another window, and "Open folder in new window" already covers that.
+
 ### Message contract
 
 | Front end → host | Notes |
@@ -371,6 +375,7 @@ Each **folder row** in the Explorer has two icons on its right: "Show" on the le
 | `wispkit.subtree.sort` | sort by column |
 | `wispkit.subtree.command` | run an extension or built-in command |
 | `wispkit.subtree.fileAction` | file operation, branches `cut` / `copy` / `paste` / `rename` / `delete` / `newFile` / `newFolder` / `compare` |
+| `wispkit.subtree.systemTerminal` | start a system terminal: `kind` names the platform terminal (e.g. `windows-powershell-admin`), `paths` carries the selection |
 | `wispkit.subtree.tool` | run a custom tool |
 | `wispkit.subtree.open` | open or reveal an entry |
 | `wispkit.subtree.drop` | raw dropped resources (`targetDir` + file bytes + strings); the host asks and writes. `internalDrag` + `moveRequested` mean "dragged inside the subtree with Ctrl/Cmd held", so the host skips the copy/move prompt and moves directly |

@@ -347,7 +347,7 @@ Cada **fila de carpeta** del Explorador tiene dos iconos a su derecha: «Mostrar
 
 | Tipo | Origen | Notas |
 |---|---|---|
-| Operaciones de archivo (nativas) | integradas en Wispkit | cortar / copiar / pegar / renombrar / eliminar / nuevo archivo / nueva carpeta / comparar. **Tienen que ser propias**: los comandos incorporados `filesExplorer.*` no aceptan URI externos |
+| Operaciones de archivo (nativas) | integradas en Wispkit | cortar / copiar / pegar / renombrar / eliminar / nuevo archivo / nueva carpeta / comparar, más **terminal del sistema** y **abrir con la aplicación predeterminada**. **Tienen que ser propias**: los comandos incorporados `filesExplorer.*` no aceptan URI externos |
 | Comandos aportados por extensiones | recogidos automáticamente | recorre `contributes.menus['explorer/context']` de las extensiones instaladas y comprueba que el comando existe antes de ejecutarlo |
 | Lista de permitidos incorporada | enumerada a mano | validada con `commands.getCommands(true)` antes de ejecutar; si falta lo dice en lugar de quedarse en silencio |
 | Herramientas propias | `wispkit.subtree.tools` | admite `${file}` `${dir}` `${name}` `${workspaceFolder}`; cuatro modos de ejecución abajo |
@@ -361,6 +361,10 @@ Cada **fila de carpeta** del Explorador tiene dos iconos a su derecha: «Mostrar
 
 **El destino es la fila seleccionada en el panel, no la fila seleccionada en el Explorador** — todos los botones del área de acciones actúan sobre la fila actualmente seleccionada en el panel de subárbol.
 
+**Abrir en el terminal** (`openInTerminal`) y **Terminal del sistema** se parecen y son deliberadamente distintos: el primero escribe en un terminal que gestiona el editor, el segundo abre una ventana propia que sigue viva cuando el editor se cierra. Su submenú solo lista los terminales que la plataforma actual realmente ofrece —cmd y PowerShell, cada uno con variante elevada en Windows; Terminal.app en macOS; el terminal de escritorio en Linux— y la ventana arranca en la carpeta seleccionada, o en la carpeta del archivo seleccionado.
+
+**Abrir con la aplicación predeterminada** (`vscode.open`) entrega la selección a la aplicación que el sistema operativo tiene registrada, que es lo mismo que hace el doble clic. Permanece deshabilitada cuando la selección contiene una carpeta: abrirla así produciría otra ventana, y «Abrir carpeta en ventana nueva» ya cubre ese caso.
+
 ### Contrato de mensajes
 
 | Front-end → host | Notas |
@@ -369,6 +373,7 @@ Cada **fila de carpeta** del Explorador tiene dos iconos a su derecha: «Mostrar
 | `wispkit.subtree.sort` | ordena por columna |
 | `wispkit.subtree.command` | ejecuta un comando de extensión o incorporado |
 | `wispkit.subtree.fileAction` | operación de archivo, ramas `cut` / `copy` / `paste` / `rename` / `delete` / `newFile` / `newFolder` / `compare` |
+| `wispkit.subtree.systemTerminal` | inicia un terminal del sistema: `kind` nombra el terminal de la plataforma (p. ej. `windows-powershell-admin`), `paths` lleva la selección |
 | `wispkit.subtree.tool` | ejecuta una herramienta propia |
 | `wispkit.subtree.open` | abre o revela una entrada |
 | `wispkit.subtree.drop` | recursos soltados en bruto (`targetDir` + bytes de archivo + cadenas); el host pregunta y escribe. `internalDrag` + `moveRequested` significan «arrastrado dentro del subárbol con Ctrl/Cmd pulsado», así que el host omite la pregunta copiar/mover y mueve directamente |

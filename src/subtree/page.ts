@@ -8,6 +8,12 @@ export interface SubtreeColumnView {
 	readonly width: number;
 }
 
+export interface SubtreeCommandChildView {
+	readonly id: string;
+	readonly label: string;
+	readonly description?: string;
+}
+
 export interface SubtreeCommandView {
 	readonly id: string;
 	readonly label: string;
@@ -16,10 +22,12 @@ export interface SubtreeCommandView {
 	readonly source: string;
 	readonly group: string;
 	readonly icon: string;
-	/** 对选中项的要求：`any` / `single` / `folders` / `two`，前端据此置灰。 */
+	/** 对选中项的要求：`any` / `single` / `folders` / `files` / `two`，前端据此置灰。 */
 	readonly appliesTo: string;
 	/** 置灰时作为 title 的原因说明。 */
 	readonly disabledReason?: string;
+	/** 有子项时前端渲染成二级菜单（「系统终端打开」用）。 */
+	readonly children?: readonly SubtreeCommandChildView[];
 }
 
 export interface SubtreeToolView {

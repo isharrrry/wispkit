@@ -264,6 +264,8 @@ Three numbering facts are load-bearing and must survive any later edit:
 - **AC-R11.9** — **WHEN** a directory contains more entries than the stated cap, **THEN** the excess is truncated and the truncation is stated in the panel.
 - **AC-R11.10** — **WHEN** a printable character is typed while the panel has focus, **THEN** the selection moves to the first visible entry whose name starts with the typed prefix, pressing the same character again continues down the list and wraps around, and turning the switch off stops the behaviour entirely.
 - **AC-R11.11** — **WHEN** a visible row is a Windows shortcut or executable, **THEN** the row shows the icon embedded in the file wherever the platform provides one, and falls back to the icon theme otherwise.
+- **AC-R11.12** — **WHEN** the system terminal entry is chosen for the selection, **THEN** a terminal independent of the editor starts in the selected folder (in the selected file's own folder when a file is selected), and the terminal kinds offered are exactly those the current platform provides.
+- **AC-R11.13** — **WHEN** the default-application entry is chosen, **THEN** the selection is handed to the application the operating system has registered for it, and that entry is unavailable whenever the selection contains a folder.
 
 **Evidence.** [Views and interaction → Subtree panel](views-and-interaction.md#subtree-panel-wispkitsubtree); fixtures in `demo/R11-subtree/`; probe results in [Build and verify](build-and-verify.md).
 

@@ -6,7 +6,9 @@ import { columnDefinition, formatCell, resolveColumns, type ColumnId } from './s
 import { formatCommandLine, parseTools, resolveToolInvocation, type SubtreeToolConfig } from './subtree/config';
 import { extractFileIcons } from './subtree/fileIcons';
 import { isExecutablePath, isShellLinkPath } from './shellLink/policy';
-import { collectExplorerCommands, filterAvailableCommands, hasExplorerContextMenu, nlsFileCandidates, type ExplorerCommand, type ExtensionContribution } from './subtree/explorerCommands';
+import { collectExplorerCommands, filterAvailableCommands, hasExplorerContextMenu, nlsFileCandidates, withSystemTerminalChildren, type ExplorerCommand, type ExtensionContribution } from './subtree/explorerCommands';
+import { systemTerminalOptions } from './resourceTree/systemTerminal';
+import { launchSystemTerminal } from './resourceTree/systemTerminalLaunch';
 import {
 	deleteConfirmation,
 	describeClipboard,
@@ -303,7 +305,7 @@ export class SubtreePanel {
 			rootName: path.basename(this.folderUri.fsPath) || this.folderUri.fsPath,
 			owner: this.owner,
 			columns: this.columns.map(id => columnDefinition(id)),
-			commands: this.explorerCommands.map(command => ({
+			commands: withSystemTerminalChildren(this.explorerCommands, systemTerminalOptions(process.platform)).map(command => ({
 				id: command.id,
 				label: command.label,
 				kind: command.kind,
@@ -312,6 +314,7 @@ export class SubtreePanel {
 				icon: command.icon,
 				appliesTo: command.appliesTo,
 				disabledReason: command.disabledReason,
+				children: command.children,
 			})),
 			tools: this.tools.map(tool => ({ label: tool.label, command: tool.command, shell: tool.shell })),
 			sort: { key: this.sortState.key, direction: this.sortState.direction },
@@ -363,6 +366,9 @@ export class SubtreePanel {
 				return;
 			case 'wispkit.subtree.fileAction':
 				await this.runFileAction(String(message.action ?? ''), readPaths(message));
+				return;
+			case 'wispkit.subtree.systemTerminal':
+				await this.runSystemTerminal(String(message.kind ?? ''), readPaths(message));
 				return;
 			case 'wispkit.subtree.tool':
 				await this.runTool(Number(message.index), readPaths(message));
@@ -490,6 +496,50 @@ export class SubtreePanel {
 			return;
 		}
 		this.status(`已执行 ${command}${scope}`);
+	}
+
+	/**
+	 * 「系统终端打开」：在选中项所在目录启动**独立于 VS Code 的系统终端**。
+	 *
+	 * 选中的是文件时落到它的父目录（与资源管理器一致：对着文件点「在此处打开终端」，
+	 * 终端落在文件所在文件夹）。逐项启动 —— 选中三个文件夹就是三个终端窗口，
+	 * 而不是悄悄只取第一个。
+	 */
+	private async runSystemTerminal(kind: string, targets: readonly string[]): Promise<void> {
+		const option = systemTerminalOptions(process.platform).find(item => item.kind === kind);
+		if (!option) {
+			this.status(`当前平台不支持「${kind}」`, 'error');
+			return;
+		}
+		if (targets.length === 0) {
+			return;
+		}
+
+		const failures: string[] = [];
+		for (const target of targets) {
+			let folder = target;
+			try {
+				const stat = await vscode.workspace.fs.stat(vscode.Uri.file(target));
+				if (!(stat.type & vscode.FileType.Directory)) {
+					folder = path.dirname(target);
+				}
+			} catch {
+				// stat 失败时按文件处理：终端落在父目录，一个失效条目不该把整批拖垮
+				folder = path.dirname(target);
+			}
+			const outcome = await launchSystemTerminal(option.kind, folder);
+			if (!outcome.ok) {
+				failures.push(outcome.message);
+			}
+		}
+
+		const scope = targets.length > 1 ? `（${targets.length} 项）` : '';
+		if (failures.length > 0) {
+			this.status(`打开系统终端失败${scope}：${failures[0]}`, 'error');
+			void vscode.window.showWarningMessage(`Wispkit：打开系统终端失败 —— ${failures[0]}`);
+			return;
+		}
+		this.status(`已在系统终端中打开${scope}`);
 	}
 
 	/**

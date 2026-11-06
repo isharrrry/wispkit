@@ -13,6 +13,8 @@
  *   扩展自己声明的，收集到就能调；标题缺失时做本地化解析或派生，**绝不显示原始 command id**。
  */
 
+import type { SystemTerminalOption } from '../resourceTree/systemTerminal';
+
 export type CommandGroup = 'clipboard' | 'edit' | 'path' | 'navigate' | 'compare' | 'extension' | 'other';
 
 /** 操作区里分组的先后顺序（同组之间会画分隔线）。 */
@@ -25,6 +27,9 @@ export const COMMAND_GROUP_ORDER: readonly CommandGroup[] = [
 	'extension',
 	'other',
 ];
+
+/** 「系统终端打开」的命令 id —— 宿主要给它挂平台相关的子项，前端据 `children` 渲染二级菜单。 */
+export const SYSTEM_TERMINAL_COMMAND_ID = 'wispkit.subtree.systemTerminal';
 
 export const COMMAND_GROUP_LABELS: Readonly<Record<CommandGroup, string>> = {
 	clipboard: '剪贴板',
@@ -44,9 +49,21 @@ export type CommandKind = 'builtin' | 'native' | 'extension';
  * - `any`    ：任意选中，含多选。
  * - `single` ：恰好选中一个。
  * - `folders`：选中的必须**全是文件夹**。未选中时视为「操作根目录」，仍然可用。
+ * - `files`  ：选中的必须**全是文件**（`vscode.open` 之类只对文件有意义的命令）。
  * - `two`    ：恰好选中两个（比较）。
  */
-export type CommandAppliesTo = 'any' | 'single' | 'folders' | 'two';
+export type CommandAppliesTo = 'any' | 'single' | 'folders' | 'files' | 'two';
+
+/**
+ * 二级菜单项。目前只有「系统终端打开」用：同样是"在这个目录里开终端"，
+ * 但终端种类由平台决定，平铺会让 Windows 上多出四条占位很重的同级项。
+ */
+export interface CommandChild {
+	/** 执行时原样回传给宿主，宿主据此选启动方式（如 `windows-powershell-admin`）。 */
+	readonly id: string;
+	readonly label: string;
+	readonly description?: string;
+}
 
 export interface ExplorerCommand {
 	readonly id: string;
@@ -61,6 +78,8 @@ export interface ExplorerCommand {
 	readonly appliesTo: CommandAppliesTo;
 	/** 置灰时作为 `title` 告诉用户为什么不能用。 */
 	readonly disabledReason?: string;
+	/** 有子项时前端渲染二级菜单，本身不再直接执行。 */
+	readonly children?: readonly CommandChild[];
 }
 
 export interface ExtensionContribution {
@@ -100,6 +119,13 @@ export const NATIVE_FILE_COMMANDS: readonly ExplorerCommand[] = [
 		id: 'wispkit.subtree.compare', label: '比较所选', kind: 'native', source: 'wispkit', group: 'compare', icon: 'compare',
 		appliesTo: 'two', disabledReason: '比较需要恰好选中两个文件',
 	},
+
+	// 子项（cmd / PowerShell / 管理员…）由宿主按平台填进 `children`，
+	// 不写死在这里：终端种类随平台变化，写死会让 macOS / Linux 上出现点不动的项。
+	{
+		id: SYSTEM_TERMINAL_COMMAND_ID, label: '系统终端打开', kind: 'native', source: 'wispkit', group: 'navigate', icon: 'terminal',
+		appliesTo: 'single', disabledReason: '请在子树里选中一个条目',
+	},
 ];
 
 /**
@@ -128,6 +154,12 @@ export const BUILTIN_EXPLORER_COMMANDS: readonly ExplorerCommand[] = [
 	{
 		id: 'vscode.openFolder', label: '在新窗口打开文件夹', kind: 'builtin', source: 'builtin', group: 'navigate', icon: 'folder',
 		appliesTo: 'single', disabledReason: '请在子树里选中一个文件夹',
+	},
+	{
+		// `vscode.open` 接受 uri，会交给操作系统的默认程序（正是资源管理器双击的效果）。
+		// 文件夹不行：那等于再开一个窗口，已由 `vscode.openFolder` 覆盖。
+		id: 'vscode.open', label: '用默认应用打开', kind: 'builtin', source: 'builtin', group: 'navigate', icon: 'open',
+		appliesTo: 'files', disabledReason: '文件夹请用「在新窗口打开文件夹」',
 	},
 ];
 
@@ -357,7 +389,30 @@ export function isCommandApplicable(command: ExplorerCommand, selection: Selecti
 			return selection.count === 2;
 		case 'folders':
 			return selection.count === 0 || (selection.directoryCount === selection.count && selection.count > 0);
+		case 'files':
+			return selection.count > 0 && selection.directoryCount === 0;
 		default:
 			return false;
 	}
+}
+
+/**
+ * 给「系统终端打开」挂上当前平台的子项。
+ *
+ * 子项不写进命令表：终端种类随平台变（Windows 四种、macOS / Linux 各一种），
+ * 写死会让别的平台上出现点不动的项。平台一个都没有时整条命令去掉 ——
+ * 展开后空白的菜单比没有更糟。
+ */
+export function withSystemTerminalChildren(
+	commands: readonly ExplorerCommand[],
+	options: readonly SystemTerminalOption[],
+): ExplorerCommand[] {
+	const children: CommandChild[] = options.map(option => ({
+		id: option.kind,
+		label: option.label,
+		description: option.description,
+	}));
+	return commands
+		.filter(command => command.id !== SYSTEM_TERMINAL_COMMAND_ID || children.length > 0)
+		.map(command => (command.id === SYSTEM_TERMINAL_COMMAND_ID ? { ...command, children } : command));
 }
