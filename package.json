@@ -2,18 +2,18 @@
 	"name": "wispkit",
 	"displayName": "Wispkit",
 	"description": "Browsing enhancements for Markdown, images, videos, HTML and XAML: preview-script injection with nonce/CSP, table of contents, default wheel zoom, right-drag pan, media context menu (save as / copy path / copy source), drawio block editing, and in-editor link navigation (relative paths, vscode://file, line numbers).",
-	"version": "0.2.9",
-	"publisher": "narnat",
+	"version": "0.2.15",
+	"publisher": "harrrry",
 	"author": "None",
 	"license": "MIT",
 	"icon": "media/icon.png",
 	"repository": {
 		"type": "git",
-		"url": "https://gitee.com/the50w/wispkit.git"
+		"url": "https://github.com/isharrrry/wispkit.git"
 	},
-	"homepage": "https://gitee.com/the50w/wispkit#readme",
+	"homepage": "https://github.com/isharrrry/wispkit#readme",
 	"bugs": {
-		"url": "https://gitee.com/the50w/wispkit/issues"
+		"url": "https://github.com/isharrrry/wispkit/issues"
 	},
 	"engines": {
 		"node": "^22.22.2 || ^24.15.0 || >=26.0.0",
@@ -830,7 +830,7 @@
 		"watch": "tsc -watch -p ./",
 		"lint": "eslint src",
 		"test": "npm run compile && mocha \"out/test/**/*.test.js\"",
-		"package": "vsce package --baseContentUrl https://gitee.com/the50w/wispkit/blob/master --baseImagesUrl https://gitee.com/the50w/wispkit/raw/master"
+		"package": "vsce package --baseContentUrl https://github.com/isharrrry/wispkit/blob/master --baseImagesUrl https://github.com/isharrrry/wispkit/raw/master"
 	},
 	"devDependencies": {
 		"@types/jsdom": "^30.0.0",

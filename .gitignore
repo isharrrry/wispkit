@@ -16,6 +16,9 @@ tools/xaml-render/bin/Debug/
 tools/xaml-render/obj/
 tools/xaml-render/publish/
 
+# 拖放与对比功能的手工测试临时工作区
+/ws/
+
 # 编辑器与系统杂项
 .vscode/
 *.bak

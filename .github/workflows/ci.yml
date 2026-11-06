@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify
+    # The test suite asserts Windows path semantics (drive letters, UNC, `\`).
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          # jsdom 30 is the binding constraint (^22.22.2 || ^24.15.0 || >=26);
+          # ESLint 9 (^20.9.0) and @vscode/vsce (>=20) allow lower versions.
+          node-version: "22.22.2"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The order is fixed. `npm test` compiles again and then runs the
+      # compiled tests, so lint must run first; otherwise a lint error is
+      # reported as a test failure.
+      - name: Lint
+        run: npm run lint
+
+      - name: Compile
+        run: npm run compile
+
+      - name: Test
+        run: npm test
