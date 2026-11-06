@@ -1,5 +1,10 @@
 # Wispkit
 
+[![CI](https://github.com/isharrrry/wispkit/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/isharrrry/wispkit/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/isharrrry/wispkit)](https://github.com/isharrrry/wispkit/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code%20Marketplace-install-007ACC)](https://marketplace.visualstudio.com/items?itemName=harrrry.wispkit)
+
 [English](README.md) | [中文](README.zh-CN.md) | **Español**
 
 > Mejoras de navegación para VS Code. **Nunca parchea VS Code ni modifica ninguno de sus archivos**: siete editores personalizados gestionan Markdown / Mermaid / imágenes / vídeos / HTML / XAML / texto de solo lectura, más una vista de gestión de recursos personalizada en la barra de actividades, un panel de subárbol en el Explorador y un navegador 3D de gráficos para Markdown y Mermaid.

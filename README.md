@@ -1,5 +1,10 @@
 # Wispkit
 
+[![CI](https://github.com/isharrrry/wispkit/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/isharrrry/wispkit/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/isharrrry/wispkit)](https://github.com/isharrrry/wispkit/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code%20Marketplace-install-007ACC)](https://marketplace.visualstudio.com/items?itemName=harrrry.wispkit)
+
 **English** | [中文](README.zh-CN.md) | [Español](README.es.md)
 
 > Browsing enhancements for VS Code. It **never patches VS Code or modifies a single file of it** — seven custom editors carry Markdown / Mermaid / images / videos / HTML / XAML / read-only text, plus a custom resource management view in the Activity Bar, an Explorer subtree panel and a 3D graph browser for Markdown and Mermaid.

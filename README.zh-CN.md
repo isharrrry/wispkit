@@ -1,5 +1,10 @@
 # Wispkit
 
+[![CI](https://github.com/isharrrry/wispkit/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/isharrrry/wispkit/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/isharrrry/wispkit)](https://github.com/isharrrry/wispkit/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code%20Marketplace-install-007ACC)](https://marketplace.visualstudio.com/items?itemName=harrrry.wispkit)
+
 [English](README.md) | **中文** | [Español](README.es.md)
 
 > VS Code 的浏览增强扩展。**不修改 VS Code 任何文件、不依赖补丁**，用 7 个自定义编辑器承载 Markdown / Mermaid / 图片 / 视频 / HTML / XAML / 只读文本，另加一个活动栏的自定义资源管理视图、一个资源管理器子树面板，以及 Markdown / Mermaid 的 3D 图浏览面板。
